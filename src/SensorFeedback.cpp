@@ -1,6 +1,6 @@
 #include "DJI_guidance.h"
 #include "DJI_utility.h"
-#include "GuidanceNode_5.h"
+#include "SensorFeedback.h"
 
 ros::Publisher depth_image_pub;
 ros::Publisher left_image_pub;
@@ -9,7 +9,7 @@ ros::Publisher obstacle_distance_pub;
 ros::Publisher ultrasonic_pub;
 
 bool         show_images                 = true;
-uint8_t      verbosity                   = 2;
+uint8_t      verbosity                   = 0;
 uint8_t      camera_select               = 0;
 std::string  frame_id                    = "front";
 e_vbus_index CAMERA_ID                   = e_vbus1;
@@ -101,7 +101,7 @@ int my_callback(int data_type, int data_len, char *content) {
       depth_image_pub.publish(depth_16.toImageMsg());
     }
 
-    //waitKey(1);
+    cv::waitKey(1);
   }
 
   // Obstacle distance
@@ -160,7 +160,7 @@ int my_callback(int data_type, int data_len, char *content) {
 
 int main(int argc, char** argv) {
   // Initialize ROS
-  ros::init(argc, argv, "GuidanceNode_5");
+  ros::init(argc, argv, "SensorFeedback");
   ros::NodeHandle nh;
   depth_image_pub			  = nh.advertise<sensor_msgs::Image>    ("/rob666/guidance/depth_image",       1);
   left_image_pub			  = nh.advertise<sensor_msgs::Image>    ("/rob666/guidance/left_image",        1);
@@ -259,6 +259,7 @@ int main(int argc, char** argv) {
     err_code = start_transfer();
     RETURN_IF_ERR(err_code);
 
+    ros::Duration(0.053).sleep();
     ros::spinOnce();
   }
 
