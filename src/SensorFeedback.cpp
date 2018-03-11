@@ -10,7 +10,7 @@ ros::Publisher ultrasonic_pub;
 bool         show_info                   = true;
 uint8_t      camera_select               = 0;
 std::string  frame_id                    = "front";
-e_vbus_index CAMERA_ID                   = e_vbus1;
+e_vbus_index camera_id                   = e_vbus1;
 DJI_lock     g_lock;
 DJI_event    g_event;
 cv::Mat      g_greyscale_image_left(HEIGHT, WIDTH, CV_8UC1);
@@ -52,11 +52,11 @@ int main(int argc, char** argv) {
   }
 
   // Select data
-  err_code = select_greyscale_image(CAMERA_ID, true); //Left
+  err_code = select_greyscale_image(camera_id, true); //Left
   RETURN_IF_ERR(err_code);
-  err_code = select_greyscale_image(CAMERA_ID, false); //Right
+  err_code = select_greyscale_image(camera_id, false); //Right
   RETURN_IF_ERR(err_code);
-  err_code = select_depth_image(CAMERA_ID);
+  err_code = select_depth_image(camera_id);
   RETURN_IF_ERR(err_code);
   select_ultrasonic();
   select_obstacle_distance();
@@ -68,56 +68,64 @@ int main(int argc, char** argv) {
   err_code = start_transfer();
   RETURN_IF_ERR(err_code);
 
+  ros::Rate r(19); //19Hz
+
   while (ros::ok()) {
     g_event.wait_event();
 
-    // Stop transfer in order to select new sensor
-    err_code = stop_transfer();
-    RETURN_IF_ERR(err_code);
-    reset_config();
+    static ros::Time start_time = ros::Time::now();
+    ros::Duration elapsed_time = ros::Time::now() - start_time;
 
-    switch (camera_select) {
-      case 0:
-        CAMERA_ID = e_vbus1;
-        frame_id = "front";
+    if(elapsed_time > ros::Duration(1)) { //Publish all sides once every second
+      // Stop transfer in order to select new sensor
+      err_code = stop_transfer();
+      RETURN_IF_ERR(err_code);
+      reset_config();
+
+      switch (camera_select) {
+        case 0:
+        camera_id = e_vbus2;
+        frame_id = "right";
         camera_select = 1;
         break;
-      case 1:
-        CAMERA_ID = e_vbus2;
-        frame_id = "right";
+        case 1:
+        camera_id = e_vbus3;
+        frame_id = "rear";
         camera_select = 2;
         break;
-      case 2:
-        CAMERA_ID = e_vbus3;
-        frame_id = "rear";
+        case 2:
+        camera_id = e_vbus4;
+        frame_id = "left";
         camera_select = 3;
         break;
-      case 3:
-        CAMERA_ID = e_vbus4;
-        frame_id = "left";
+        case 3:
+        camera_id = e_vbus5;
+        frame_id = "down";
         camera_select = 4;
         break;
-      case 4:
-        CAMERA_ID = e_vbus5;
-        frame_id = "down";
+        case 4:
+        camera_id = e_vbus1;
+        frame_id = "front";
         camera_select = 0;
+        start_time = ros::Time::now();
         break;
+      }
+
+      // Select data
+      err_code = select_greyscale_image(camera_id, true); //Left
+      RETURN_IF_ERR(err_code);
+      err_code = select_greyscale_image(camera_id, false); //Right
+      RETURN_IF_ERR(err_code);
+      select_ultrasonic();
+      select_obstacle_distance();
+
+      // Start data transfer
+      err_code = start_transfer();
+      RETURN_IF_ERR(err_code);
     }
 
-    // Select data
-    err_code = select_greyscale_image(CAMERA_ID, true); //Left
-    RETURN_IF_ERR(err_code);
-    err_code = select_greyscale_image(CAMERA_ID, false); //Right
-    RETURN_IF_ERR(err_code);
-    select_ultrasonic();
-    select_obstacle_distance();
-
-    // Start data transfer
-    err_code = start_transfer();
-    RETURN_IF_ERR(err_code);
-
-    ros::Duration(0.053).sleep();
     ros::spinOnce();
+    r.sleep();
   }
 
   // Release data transfer
@@ -138,12 +146,9 @@ int sensor_callback(int data_type, int data_len, char *content) {
   if(e_image == data_type && NULL != content) {
     image_data* data = (image_data*)content;
 
-    if(data->m_greyscale_image_left[CAMERA_ID]) {
-      memcpy(g_greyscale_image_left.data, data->m_greyscale_image_left[CAMERA_ID], IMAGE_SIZE);
-
-      if(show_info) {
-        imshow("left",  g_greyscale_image_left);
-      }
+    if(data->m_greyscale_image_left[camera_id]) {
+      memcpy(g_greyscale_image_left.data, data->m_greyscale_image_left[camera_id], IMAGE_SIZE);
+      if(show_info) imshow("left",  g_greyscale_image_left);
 
       // Publish left greyscale image
       cv_bridge::CvImage left_8;
@@ -154,11 +159,9 @@ int sensor_callback(int data_type, int data_len, char *content) {
       left_image_pub.publish(left_8.toImageMsg());
     }
 
-    if(data->m_greyscale_image_right[CAMERA_ID]) {
-      memcpy(g_greyscale_image_right.data, data->m_greyscale_image_right[CAMERA_ID], IMAGE_SIZE);
-      if(show_info) {
-        imshow("right", g_greyscale_image_right);
-      }
+    if(data->m_greyscale_image_right[camera_id]) {
+      memcpy(g_greyscale_image_right.data, data->m_greyscale_image_right[camera_id], IMAGE_SIZE);
+      if(show_info) imshow("right", g_greyscale_image_right);
 
       // Publish right greyscale image
       cv_bridge::CvImage right_8;
@@ -175,7 +178,6 @@ int sensor_callback(int data_type, int data_len, char *content) {
   // Obstacle distance
   if(e_obstacle_distance == data_type && NULL != content) {
     obstacle_distance *oa = (obstacle_distance*)content;
-
     if(show_info) {
       printf("frame index: %d, stamp: %d\n", oa->frame_index, oa->time_stamp);
       printf("obstacle distance:");
@@ -199,7 +201,6 @@ int sensor_callback(int data_type, int data_len, char *content) {
   // Ultrasonic
   if(e_ultrasonic == data_type && NULL != content) {
     ultrasonic_data *ultrasonic = (ultrasonic_data*)content;
-
     if(show_info) {
       printf("frame index: %d, stamp: %d\n", ultrasonic->frame_index, ultrasonic->time_stamp);
       for(int d = 0; d < CAMERA_PAIR_NUM; ++d) {
