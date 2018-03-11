@@ -271,8 +271,8 @@ int main(int argc, char** argv)
     ros::init(argc, argv, "GuidanceNodeTest");
     ros::NodeHandle my_node;
 
-    left_image_sub        = my_node.subscribe("/guidance/left_image",  1, left_image_callback);
-    right_image_sub       = my_node.subscribe("/guidance/right_image", 1, right_image_callback);
+    left_image_sub        = my_node.subscribe("/rob666/guidance/left_image",  1, left_image_callback);
+    right_image_sub       = my_node.subscribe("/rob666/guidance/right_image", 1, right_image_callback);
 
     LaserScan_pub = my_node.advertise<sensor_msgs::LaserScan>("/guidance/ocupancy_grid_values",1);
 
