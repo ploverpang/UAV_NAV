@@ -43,7 +43,9 @@ target_link_libraries(sensorFeedback
 )
 
 add_executable(depthGeneration
-  src/DepthGeneration.cpp)
+  src/DepthGeneration.cpp
+  src/supportingALG.cpp
+)
 
 target_link_libraries(depthGeneration
   ${OpenCV_LIBS}
