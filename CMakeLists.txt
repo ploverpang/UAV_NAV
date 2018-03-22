@@ -1,9 +1,6 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(uav_nav)
 
-## Find catkin macros and libraries
-## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
-## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   geometry_msgs
@@ -12,6 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
   sensor_msgs
+  dji_sdk
 )
 find_package(DJIOSDK REQUIRED)
 find_package(OpenCV REQUIRED)
@@ -44,7 +42,7 @@ target_link_libraries(sensorFeedback
 
 add_executable(depthGeneration
   src/DepthGeneration.cpp
-  src/supportingALG.cpp
+  src/SupportingALG.cpp
 )
 
 target_link_libraries(depthGeneration
@@ -58,4 +56,3 @@ target_link_libraries(depthGeneration
 #install(DIRECTORY launch
 #  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
 #)
-

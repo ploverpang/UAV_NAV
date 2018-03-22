@@ -2,7 +2,7 @@
 *Supporting algorithms for main depthProcessing node
 *
 */
-#include <depthProcessing.hpp>
+#include <DepthGeneration.hpp>
 
 using namespace cv;
 
@@ -11,10 +11,10 @@ float findsmallestX(std::vector<int> arr, int numberOfArrayElements, int stopNum
     if (numberOfArrayElements == 0){
         return average;
     }
-    else if (stopNumber == numberOfArrayElements){ //optimization in case all values are taken into account  
+    else if (stopNumber == numberOfArrayElements){ //optimization in case all values are taken into account
         for (std::vector<int>::iterator it=arr.begin(); it!=arr.end(); ++it){
             average += *it;
-        }     
+        }
     }
     else{
         std::priority_queue<int, std::vector<int>, std::greater<int> >pq;
@@ -89,9 +89,9 @@ cv::Mat maskOutliers(cv::Mat src_img, cv::Mat prevFrame, std::list<cv::Mat> &mas
     cv::threshold(maskSum, maskSum, 1, 255, 1);
     maskSum.convertTo(maskSum, CV_8UC1);
     imshow("Thresholded mask", maskSum);
-    waitKey(1); 
+    waitKey(1);
 
-    src_img.copyTo(dst_img,maskSum);        
+    src_img.copyTo(dst_img,maskSum);
 
     return dst_img;
 }

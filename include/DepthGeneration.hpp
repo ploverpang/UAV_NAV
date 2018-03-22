@@ -1,11 +1,11 @@
-#ifndef __DEPTHPROCESSING_H__
-#define __DEPTHPROCESSING_H__
+#ifndef __DEPTHGENERATION_H__
+#define __DEPTHGENERATION_H__
 
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
 #include <ros/ros.h>
-#include <math.h> 
+#include <math.h>
 #include <vector>
 #include <queue>
 #include <functional>     // std::greater

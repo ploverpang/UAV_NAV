@@ -2,12 +2,12 @@
  * depthProcessing.cpp
  *
  *  Created on: Dec, 1 2017
- *      Author: ghostfromthebottle 
+ *      Author: ghostfromthebottle
  *
  * uses: supportingALG.cpp for findsmallestX, show_histogram
  */
 
-#include <depthProcessing.hpp>
+#include <DepthGeneration.hpp>
 
 ros::Subscriber left_image_sub;
 ros::Subscriber right_image_sub;
@@ -16,7 +16,7 @@ ros::Publisher laser_scan_pub;
 cv::Mat left_img1(HEIGHT, WIDTH, CV_8UC1);
 cv::Mat right_img1(HEIGHT, WIDTH, CV_8UC1);
 cv::Mat imgDisparity16S(HEIGHT, WIDTH, CV_16UC1);
-Mat frameBuffer;
+cv::Mat frameBuffer;
 std::list<cv::Mat> maskList;  // Container for stored masks;
 
 
@@ -36,7 +36,7 @@ Ptr<StereoMatcher> right_matcher_sgbm = createRightMatcher(sgbm);
 //Other variables
 int imgFlag = 0;
 double scale16_8 = 0.00390625;
-
+std::string left_id, right_id;
 
 
 /* left greyscale image */
@@ -49,10 +49,9 @@ void left_image_callback(const sensor_msgs::ImageConstPtr& left_img){
     ROS_ERROR("cv_bridge exception: %s", e.what());
     return;
   }
+
+  left_id = left_img->header.frame_id;
   cv_ptr->image.convertTo(left_img1, CV_8UC1);
-  std_msgs::String frameName;
-  frameName.data = left_img->header.frame_id;
-  //ROS_INFO("%s",frameName.data.c_str());
   imgFlag++;
 }
 
@@ -67,6 +66,7 @@ void right_image_callback(const sensor_msgs::ImageConstPtr& right_img){
     return;
   }
 
+  right_id = right_img->header.frame_id;
   cv_ptr->image.convertTo(right_img1, CV_8UC1);
   imgFlag++;
 }
@@ -100,8 +100,8 @@ cv::Mat CreateDepthImage(cv::Mat L_img, cv::Mat R_img){
   filtered_sgbm = (247.35*150)/filtered_sgbm;
   //left_sgbm /= 12.8; //Devide by 128 to get meter values
 
-    /*// Morphology 
-    cv::Mat element = getStructuringElement(MORPH_RECT, Size(9, 9));  
+    /*// Morphology
+    cv::Mat element = getStructuringElement(MORPH_RECT, Size(9, 9));
     morphologyEx(left_sgbm, left_sgbm, MORPH_OPEN, element);
     morphologyEx(left_sgbm, left_sgbm, MORPH_CLOSE, element);
     //imshow("after morphology", out_img);*/
@@ -125,13 +125,13 @@ cv::Mat CreateDepthImage(cv::Mat L_img, cv::Mat R_img){
 
 
   if (frameBuffer.empty() == false){
-    Mat debug_mask = maskOutliers(left_sgbm, frameBuffer, maskList, 10, 10);
+    cv::Mat debug_mask = maskOutliers(left_sgbm, frameBuffer, maskList, 10, 10);
     imshow("mask Outliers", debug_mask);
   }
   left_sgbm.copyTo(frameBuffer);
 
-  Mat out_img = filtered_disp;
-    //Mat processedDepth = DepthProcessing(croppedHEIGHT, croppedWIDTH, out_img);
+  cv::Mat out_img = filtered_disp;
+    //cv::Mat processedDepth = DepthProcessing(croppedHEIGHT, croppedWIDTH, out_img);
 
   return out_img;
 }
@@ -141,7 +141,7 @@ cv::Mat DepthProcessing(int croppedHEIGHT, int croppedWIDTH, cv::Mat src_img){
 
     // X and Y component of the field of view of the depth image
   float FOV_x = 45;
-  float FOV_y = 45; 
+  float FOV_y = 45;
     float slice_x = 5; // width of each slice in degrees
     float slice_y = 45;
     float percentMin = 100 /float(100); // The bottom X percent of the grid values.
@@ -155,7 +155,7 @@ cv::Mat DepthProcessing(int croppedHEIGHT, int croppedWIDTH, cv::Mat src_img){
     int pushByPixelAmmount_y = floor((croppedHEIGHT-(slicePixelHEIGHT*numSlices_y))/2);
 
     // Multi dimensional array containing the average values from each slice/square of the depth image.
-    float depthGidValues[numSlices_x][numSlices_y][1] = {};  
+    float depthGidValues[numSlices_x][numSlices_y][1] = {};
     // Process non NULL values
     for (int x_grid=0; x_grid<numSlices_x; x_grid++){
       for (int y_grid=0; y_grid<numSlices_y; y_grid++){
@@ -185,7 +185,7 @@ cv::Mat DepthProcessing(int croppedHEIGHT, int croppedWIDTH, cv::Mat src_img){
     }
 
     sensor_msgs::LaserScan scans;
-    scans.header.frame_id = "depth scans";
+    scans.header.frame_id = left_id;
     scans.header.stamp = ros::Time::now();
     scans.angle_min = (-FOV_x/2) * (M_PI/180);//((slice_x-FOV_x)/2) * (M_PI/180);
     scans.angle_max = (FOV_x)/2 * (M_PI/180);//(FOV_x-slice_x)/2 * (M_PI/180);
@@ -197,7 +197,7 @@ cv::Mat DepthProcessing(int croppedHEIGHT, int croppedWIDTH, cv::Mat src_img){
     for (int i=0; i < numSlices_x; i++){
       scans.ranges[i] = depthGidValues[i][0][0];
     }
-    LaserScan_pub.publish(scans);
+    laser_scan_pub.publish(scans);
 
 
     //pic showing the output of this method
