@@ -23,15 +23,15 @@ std::list<cv::Mat> maskList;  // Container for stored masks;
 // For Stereo BM
 const int numDisp = 64;
 const int blockSize = 9;
-Ptr<StereoBM> sbm = StereoBM::create(numDisp,blockSize);
-Ptr<DisparityWLSFilter> wls_filter = createDisparityWLSFilter(sbm);
-Ptr<StereoMatcher> right_matcher = createRightMatcher(sbm);
+cv::Ptr<cv::StereoBM> sbm = cv::StereoBM::create(numDisp,blockSize);
+cv::Ptr<cv::ximgproc::DisparityWLSFilter> wls_filter = cv::ximgproc::createDisparityWLSFilter(sbm);
+cv::Ptr<cv::StereoMatcher> right_matcher = cv::ximgproc::createRightMatcher(sbm);
 
 // For StereoSGBM
 const int wsize =5;
-Ptr<StereoSGBM> sgbm  = StereoSGBM::create(0,numDisp,wsize);
-Ptr<DisparityWLSFilter> wls_filter_sgbm = createDisparityWLSFilter(sgbm);
-Ptr<StereoMatcher> right_matcher_sgbm = createRightMatcher(sgbm);
+cv::Ptr<cv::StereoSGBM> sgbm  = cv::StereoSGBM::create(0,numDisp,wsize);
+cv::Ptr<cv::ximgproc::DisparityWLSFilter> wls_filter_sgbm = cv::ximgproc::createDisparityWLSFilter(sgbm);
+cv::Ptr<cv::StereoMatcher> right_matcher_sgbm = cv::ximgproc::createRightMatcher(sgbm);
 
 //Other variables
 int imgFlag = 0;
@@ -91,7 +91,7 @@ cv::Mat CreateDepthImage(cv::Mat L_img, cv::Mat R_img){
   sgbm->setP1(8*wsize*wsize);
   sgbm->setP2(32*wsize*wsize);
   sgbm->setPreFilterCap(21);
-  sgbm->setMode(StereoSGBM::MODE_SGBM);
+  sgbm->setMode(cv::StereoSGBM::MODE_SGBM);
   sgbm->compute( L_img, R_img, left_sgbm);
   right_matcher_sgbm->compute(R_img, L_img, right_sgbm);
   wls_filter_sgbm->setLambda(8000);
@@ -227,7 +227,7 @@ cv::Mat DepthProcessing(int croppedHEIGHT, int croppedWIDTH, cv::Mat src_img){
 
     while(ros::ok()) {
     if(imgFlag >= 2 && imgFlag%2==0 && left_id.compare(right_id) == 0) {  // Initial IMG rendering delays the main loop
-      imgDisparity16S = CreateDepthImage(left_img1, right_img1, imgDisparity16S);
+      imgDisparity16S = CreateDepthImage(left_img1, right_img1);
       cv::imshow("MORPHOLOGY disp", imgDisparity16S);
       //show_histogram("disp hist", imgDisparity16S);
 
