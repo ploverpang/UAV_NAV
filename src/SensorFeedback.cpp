@@ -1,6 +1,6 @@
 #include "DJI_guidance.h"
 #include "DJI_utility.h"
-#include "SensorFeedback.h"
+#include "SensorFeedback.hpp"
 
 ros::Publisher left_image_pub;
 ros::Publisher right_image_pub;

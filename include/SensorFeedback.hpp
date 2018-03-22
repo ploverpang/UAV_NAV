@@ -1,10 +1,9 @@
-#include <stdio.h>
-#include <string.h>
-#include <iostream>
+#ifndef SENSORFEEDBACK_HPP
+#define SENSORFEEDBACK_HPP
+
 #include <ros/ros.h>
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/Image.h>
-#include <sensor_msgs/image_encodings.h>
 #include <sensor_msgs/LaserScan.h> //obstacle distance & ultrasonic
 #include <opencv2/opencv.hpp>
 
@@ -47,3 +46,5 @@ std::ostream& operator<<(std::ostream& out, const e_sdk_err_code value) {
 }
 
 int sensor_callback(int data_type, int data_len, char *content);
+
+#endif //SENSORFEEDBACK_HPP

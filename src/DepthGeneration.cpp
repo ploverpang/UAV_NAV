@@ -1,12 +1,3 @@
-/*
- * depthProcessing.cpp
- *
- *  Created on: Dec, 1 2017
- *      Author: ghostfromthebottle
- *
- * uses: supportingALG.cpp for findsmallestX, show_histogram
- */
-
 #include <DepthGeneration.hpp>
 
 ros::Subscriber left_image_sub;
