@@ -7,26 +7,20 @@ ros::Publisher laser_scan_pub;
 cv::Mat left_img1(HEIGHT, WIDTH, CV_8UC1);
 cv::Mat right_img1(HEIGHT, WIDTH, CV_8UC1);
 cv::Mat imgDisparity16S(HEIGHT, WIDTH, CV_16UC1);
-cv::Mat frameBuffer;
-std::list<cv::Mat> maskList;  // Container for stored masks;
+cv::Mat frameBuffer_sgbm;
+std::list<cv::Mat> maskList_sgbm;  // Container for stored masks;
 
-
-// For Stereo BM
-const int numDisp = 64;
-const int blockSize = 9;
-cv::Ptr<cv::StereoBM> sbm = cv::StereoBM::create(numDisp,blockSize);
-cv::Ptr<cv::ximgproc::DisparityWLSFilter> wls_filter = cv::ximgproc::createDisparityWLSFilter(sbm);
-cv::Ptr<cv::StereoMatcher> right_matcher = cv::ximgproc::createRightMatcher(sbm);
 
 // For StereoSGBM
-const int wsize =5;
+const int wsize =3;
+const int numDisp = 64;
+const int blockSize = 9;
 cv::Ptr<cv::StereoSGBM> sgbm  = cv::StereoSGBM::create(0,numDisp,wsize);
 cv::Ptr<cv::ximgproc::DisparityWLSFilter> wls_filter_sgbm = cv::ximgproc::createDisparityWLSFilter(sgbm);
 cv::Ptr<cv::StereoMatcher> right_matcher_sgbm = cv::ximgproc::createRightMatcher(sgbm);
 
 //Other variables
 int imgFlag = 0;
-double scale16_8 = 0.00390625;
 std::string left_id, right_id;
 
 
@@ -68,63 +62,38 @@ cv::Mat CreateDepthImage(cv::Mat L_img, cv::Mat R_img){
   }
   else
   {
-    cv::Mat left_disp, right_disp, filtered_disp, left_sgbm, right_sgbm, filtered_sgbm;
+  cv::Mat left_sgbm, right_sgbm, filtered_sgbm, masked_sgbm;
 
-    // Stereo camera to depth image
-    sbm->compute( L_img, R_img, left_disp );
-    right_matcher->compute( R_img, L_img, right_disp);
-    wls_filter->setLambda(8000);
-  wls_filter->setSigmaColor(1.5); //0.8
-  wls_filter->filter(left_disp,left_img1,filtered_disp,right_disp);
-  filtered_disp = (247.35 * 150)/filtered_disp; //disparity map values to 'm' for 8bit grayscale img (approximation)
-
+    
   // StereoSGBM
   sgbm->setP1(8*wsize*wsize);
   sgbm->setP2(32*wsize*wsize);
   sgbm->setPreFilterCap(21);
   sgbm->setMode(cv::StereoSGBM::MODE_SGBM);
   sgbm->compute( L_img, R_img, left_sgbm);
-  right_matcher_sgbm->compute(R_img, L_img, right_sgbm);
-  wls_filter_sgbm->setLambda(8000);
-  wls_filter_sgbm->setSigmaColor(1.5); //0.8
-  wls_filter_sgbm->filter(left_sgbm,left_img1,filtered_sgbm,right_sgbm);
-  filtered_sgbm = (247.35*150)/filtered_sgbm;
-  //left_sgbm /= 12.8; //Devide by 128 to get meter values
-
-    /*// Morphology
-    cv::Mat element = getStructuringElement(MORPH_RECT, Size(9, 9));
-    morphologyEx(left_sgbm, left_sgbm, MORPH_OPEN, element);
-    morphologyEx(left_sgbm, left_sgbm, MORPH_CLOSE, element);
-    //imshow("after morphology", out_img);*/
-
-
-    //Masking unused borders
+  
+  
+  //Masking unused borders
   int x_delta = (blockSize-1)/2;
   int y_delta = (blockSize-1)/2;
   int croppedWIDTH = WIDTH-numDisp-2*(x_delta);
   int croppedHEIGHT = HEIGHT-2*(y_delta);
 
   cv::Rect mask(numDisp + x_delta, y_delta, croppedWIDTH, croppedHEIGHT);
-  filtered_disp = filtered_disp(mask);
-  filtered_disp.convertTo(filtered_disp, CV_8UC1);
   left_sgbm = left_sgbm(mask);
   left_sgbm.convertTo(left_sgbm, CV_8UC1);
-  imshow("SGBM", left_sgbm);
-  filtered_sgbm = filtered_sgbm(mask);
-  filtered_sgbm.convertTo(filtered_sgbm, CV_8UC1, scale16_8);
-    //imshow("filtered sgbm", filtered_sgbm);
+  left_sgbm.setTo(0, left_sgbm==255);
 
 
-  if (frameBuffer.empty() == false){
-    cv::Mat debug_mask = maskOutliers(left_sgbm, frameBuffer, maskList, 10, 10);
-    imshow("mask Outliers", debug_mask);
-  }
-  left_sgbm.copyTo(frameBuffer);
+  if (!frameBuffer_sgbm.empty()){
+      masked_sgbm = maskOutliers(left_sgbm, frameBuffer_sgbm, maskList_sgbm, 1, 10);
+        roundMorph(masked_sgbm, 5, 9);
+        masked_sgbm = dispToMeter(masked_sgbm);
+        cv::Mat processedDepth_sgbm = DepthProcessing(croppedHEIGHT, croppedWIDTH, masked_sgbm);
+    }
+    left_sgbm.copyTo(frameBuffer_sgbm);
 
-  cv::Mat out_img = filtered_disp;
-    //cv::Mat processedDepth = DepthProcessing(croppedHEIGHT, croppedWIDTH, out_img);
-
-  return out_img;
+    return masked_sgbm;
 }
 }
 
@@ -162,16 +131,8 @@ cv::Mat DepthProcessing(int croppedHEIGHT, int croppedWIDTH, cv::Mat src_img){
         int numberOfArrayElements = sorted1D.size();
         int stopNumber = numberOfArrayElements*percentMin;
         float average;
-
-            //ROS_INFO("Start sorting");
         average = findsmallestX(sorted1D, numberOfArrayElements, stopNumber);
-            //ROS_INFO("End sorting");
-            //printf("\n\n");
-
-            //ROS_INFO("The average of the bottom %f percent of the grid %ix,%iy is %f\n", percentMin*100, x_grid, y_grid, average);
         depthGidValues[x_grid][y_grid][0] = average;
-            //ROS_INFO("Check for good copy x: %i, y: %i, average: %f\n", x_grid, y_grid, average);
-
       }
     }
 
@@ -219,9 +180,7 @@ cv::Mat DepthProcessing(int croppedHEIGHT, int croppedWIDTH, cv::Mat src_img){
     while(ros::ok()) {
     if(imgFlag >= 2 && imgFlag%2==0 && left_id.compare(right_id) == 0) {  // Initial IMG rendering delays the main loop
       imgDisparity16S = CreateDepthImage(left_img1, right_img1);
-      cv::imshow("MORPHOLOGY disp", imgDisparity16S);
-      //show_histogram("disp hist", imgDisparity16S);
-
+      cv::imshow("To meter", imgDisparity16S);
       cv::waitKey(1);
       imgFlag = 0;
     }

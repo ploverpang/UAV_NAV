@@ -20,5 +20,7 @@ cv::Mat CreateDepthImage(cv::Mat L_img, cv::Mat R_img);
 cv::Mat DepthProcessing(int croppedHEIGHT, int croppedWIDTH, cv::Mat out_img);
 void show_histogram(std::string const& name, cv::Mat1b const& image);
 cv::Mat maskOutliers(cv::Mat src_img, cv::Mat prevFrame, std::list<cv::Mat> &maskBuffer, int nFrames, int diffThreshold);
+cv::Mat roundMorph(cv::Mat src_img, int byNumber, int xy);
+cv::Mat dispToMeter(cv::Mat src_img);
 
 #endif //DEPTHGENERATION_HPP

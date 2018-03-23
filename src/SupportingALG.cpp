@@ -88,10 +88,32 @@ cv::Mat maskOutliers(cv::Mat src_img, cv::Mat prevFrame, std::list<cv::Mat> &mas
     }
     cv::threshold(maskSum, maskSum, 1, 255, 1);
     maskSum.convertTo(maskSum, CV_8UC1);
-    imshow("Thresholded mask", maskSum);
-    waitKey(1);
+    //imshow("Thresholded mask", maskSum);
+    waitKey(1); 
 
-    src_img.copyTo(dst_img,maskSum);
+    src_img.copyTo(dst_img,maskSum);        
 
     return dst_img;
+}
+
+
+cv::Mat roundMorph(Mat src_img, int byNumber, int xy){
+    src_img /= byNumber;
+    src_img *= byNumber;
+
+    // Morphology 
+    cv::Mat element = getStructuringElement(MORPH_RECT, Size(xy, xy));  
+    morphologyEx(src_img, src_img, MORPH_OPEN, element);
+    morphologyEx(src_img, src_img, MORPH_CLOSE, element);
+    //imshow("after morphology", src_img);
+    return src_img;
+}
+
+cv::Mat dispToMeter(Mat src_img){
+    Mat distMap = src_img;
+    distMap.convertTo(distMap, CV_16UC1);
+    distMap *= 16.0; // fractional bits of StereoSGBM disparity maps, I'm not sure what role this plays. ¯\_(ツ)_/¯
+    distMap = (247.35*150)/distMap; // disparity map values to 'mm'
+    distMap.convertTo(distMap, CV_8UC1); 
+    return distMap;
 }
