@@ -1,13 +1,3 @@
-/** @file  DJI_guidance.h
-*
-* @brief Define data struct & data type from DJI_guidance system.
-*
-*This file define data struct & data type from DJI_guidance system.
-*
-* @version 1.4.0
-*
-*************************************/
-
 #ifndef __DJI_GUIDANCE_H__
 #define __DJI_GUIDANCE_H__
 
@@ -25,24 +15,24 @@
 */
 enum e_sdk_err_code
 {
-	e_timeout = -7,			// time out
-	e_libusb_io_err = -1,	// libusb IO error
-	e_OK = 0,				// Succeed with no error
-	e_load_libusb_err=1,	// Load libusb library error
-	e_sdk_not_inited=2,		// SDK software is not ready
-	e_hardware_not_ready=3, // Guidance hardware is not ready
-	e_disparity_not_allowed=4,		// Disparity or depth image is not allowed to be selected
-	e_image_frequency_not_allowed=5,  // Image frequency must be one of the enum type e_image_data_frequecy
-	e_config_not_ready=6,			// Config is not ready
-	e_online_flag_not_ready=7,	// Online flag is not ready
-	e_stereo_cali_not_ready = 8,// Stereo calibration parameters are not ready
-	e_max_sdk_err = 100			// maximum number of possible SDK errors
+  e_timeout = -7,			// time out
+  e_libusb_io_err = -1,	// libusb IO error
+  e_OK = 0,				// Succeed with no error
+  e_load_libusb_err=1,	// Load libusb library error
+  e_sdk_not_inited=2,		// SDK software is not ready
+  e_hardware_not_ready=3, // Guidance hardware is not ready
+  e_disparity_not_allowed=4,		// Disparity or depth image is not allowed to be selected
+  e_image_frequency_not_allowed=5,  // Image frequency must be one of the enum type e_image_data_frequecy
+  e_config_not_ready=6,			// Config is not ready
+  e_online_flag_not_ready=7,	// Online flag is not ready
+  e_stereo_cali_not_ready = 8,// Stereo calibration parameters are not ready
+  e_max_sdk_err = 100			// maximum number of possible SDK errors
 };
 
 enum e_device_type
 {
-	Guidance = 0,	// Device type is Guidance
-	GuidanceLite	// Possible future version
+  Guidance = 0,	// Device type is Guidance
+  GuidanceLite	// Possible future version
 };
 
 
@@ -52,11 +42,11 @@ enum e_device_type
 */
 enum e_vbus_index
 {
-	e_vbus1 = 1,	/**< front on M100 */
-	e_vbus2 = 2,	/**< right on M100 */
-	e_vbus3 = 3,	/**< rear on M100 */
-	e_vbus4 = 4,	/**< left on M100 */
-	e_vbus5 = 0	    /**< down on M100 */
+  e_vbus1 = 1,	/**< front on M100 */
+  e_vbus2 = 2,	/**< right on M100 */
+  e_vbus3 = 3,	/**< rear on M100 */
+  e_vbus4 = 4,	/**< left on M100 */
+  e_vbus5 = 0	    /**< down on M100 */
 };
 
 /**
@@ -65,9 +55,9 @@ enum e_vbus_index
 */
 enum e_image_data_frequecy
 {
-	e_frequecy_5 =  0,	/**< frequecy of image data: 5Hz */
-	e_frequecy_10 = 1,	/**< frequecy of image data: 10Hz */
-	e_frequecy_20 = 2	/**< frequecy of image data: 20Hz */
+  e_frequecy_5 =  0,	/**< frequecy of image data: 5Hz */
+  e_frequecy_10 = 1,	/**< frequecy of image data: 10Hz */
+  e_frequecy_20 = 2	/**< frequecy of image data: 20Hz */
 };
 
 /**
@@ -76,13 +66,13 @@ enum e_image_data_frequecy
 */
 enum e_guidance_event
 {
-	e_image = 0,	   	   /**< called back when image comes */
-	e_imu,	       	       /**< called back when imu comes */
-	e_ultrasonic,          /**< called back when ultrasonic comes */
-	e_velocity,	    	   /**< called back when velocity data comes */
-	e_obstacle_distance,   /**< called back when obstacle data comes */
-	e_motion,              /**< called back when global position comes */
-	e_event_num
+  e_image = 0,	   	   /**< called back when image comes */
+  e_imu,	       	       /**< called back when imu comes */
+  e_ultrasonic,          /**< called back when ultrasonic comes */
+  e_velocity,	    	   /**< called back when velocity data comes */
+  e_obstacle_distance,   /**< called back when obstacle data comes */
+  e_motion,              /**< called back when global position comes */
+  e_event_num
 };
 
 /**
@@ -91,12 +81,12 @@ enum e_guidance_event
 */
 typedef struct _image_data
 {
-	unsigned int     frame_index;	                                  /**< frame index */
-	unsigned int     time_stamp;	                                  /**< time stamp of image captured in ms */
-	char             *m_greyscale_image_left[CAMERA_NUM];	      /**< greyscale image of left camera */
-	char             *m_greyscale_image_right[CAMERA_NUM];   	  /**< greyscale image of right camera */
-	char             *m_depth_image[CAMERA_NUM];	              /**< depth image in meters */
-	char             *m_disparity_image[CAMERA_NUM];             /**< disparity image in pixels */
+  unsigned int     frame_index;	                                  /**< frame index */
+  unsigned int     time_stamp;	                                  /**< time stamp of image captured in ms */
+  char             *m_greyscale_image_left[CAMERA_NUM];	      /**< greyscale image of left camera */
+  char             *m_greyscale_image_right[CAMERA_NUM];   	  /**< greyscale image of right camera */
+  char             *m_depth_image[CAMERA_NUM];	              /**< depth image in meters */
+  char             *m_disparity_image[CAMERA_NUM];             /**< disparity image in pixels */
 }image_data;
 
 /**
@@ -105,10 +95,10 @@ typedef struct _image_data
 */
 typedef struct _ultrasonic_data
 {
-	unsigned int     frame_index;	                        /**< correspondent frame index */
-	unsigned int     time_stamp;	                        /**< time stamp of correspondent image captured in ms */
-	short            ultrasonic[CAMERA_NUM];	        /**< distance in mm. -1 means invalid measurement. */
-	unsigned short   reliability[CAMERA_NUM];	        /**< reliability of the distance data */
+  unsigned int     frame_index;	                        /**< correspondent frame index */
+  unsigned int     time_stamp;	                        /**< time stamp of correspondent image captured in ms */
+  short            ultrasonic[CAMERA_NUM];	        /**< distance in mm. -1 means invalid measurement. */
+  unsigned short   reliability[CAMERA_NUM];	        /**< reliability of the distance data */
 }ultrasonic_data;
 
 /**
@@ -117,11 +107,11 @@ typedef struct _ultrasonic_data
 */
 typedef struct _velocity
 {
-	unsigned int     frame_index;	          /**< correspondent frame index */
-	unsigned int     time_stamp;	          /**< time stamp of correspondent image captured in ms */
-	short            vx;	                  /**< velocity of x in mm/s */
-	short            vy;	                  /**< velocity of y in mm/s */
-	short            vz;	                  /**< velocity of z in mm/s */
+  unsigned int     frame_index;	          /**< correspondent frame index */
+  unsigned int     time_stamp;	          /**< time stamp of correspondent image captured in ms */
+  short            vx;	                  /**< velocity of x in mm/s */
+  short            vy;	                  /**< velocity of y in mm/s */
+  short            vz;	                  /**< velocity of z in mm/s */
 }velocity;
 
 /**
@@ -130,9 +120,9 @@ typedef struct _velocity
 */
 typedef struct _obstacle_distance
 {
-	unsigned int     frame_index;	                /**< correspondent frame index */
-	unsigned int     time_stamp;	                /**< time stamp of correspondent image captured in ms */
-	unsigned short   distance[CAMERA_NUM];     /**< distance of obstacle in cm */
+  unsigned int     frame_index;	                /**< correspondent frame index */
+  unsigned int     time_stamp;	                /**< time stamp of correspondent image captured in ms */
+  unsigned short   distance[CAMERA_NUM];     /**< distance of obstacle in cm */
 }obstacle_distance;
 
 /**
@@ -141,12 +131,12 @@ typedef struct _obstacle_distance
 */
 typedef struct _imu
 {
-	unsigned int     frame_index;	          /**< correspondent frame index */
-	unsigned int     time_stamp;	          /**< time stamp of correspondent image captured in ms */
-	float            acc_x;	                  /**< acceleration of x in unit of m/s^2 */
-	float            acc_y;	                  /**< acceleration of y in unit of m/s^2 */
-	float            acc_z;	                  /**< acceleration of z in unit of m/s^2 */
-	float            q[4];	                  /**< quaternion: [w,x,y,z] */
+  unsigned int     frame_index;	          /**< correspondent frame index */
+  unsigned int     time_stamp;	          /**< time stamp of correspondent image captured in ms */
+  float            acc_x;	                  /**< acceleration of x in unit of m/s^2 */
+  float            acc_y;	                  /**< acceleration of y in unit of m/s^2 */
+  float            acc_z;	                  /**< acceleration of z in unit of m/s^2 */
+  float            q[4];	                  /**< quaternion: [w,x,y,z] */
 }imu;
 
 /**
@@ -155,16 +145,16 @@ typedef struct _imu
 */
 typedef struct _stereo_cali
 {
-	float cu;			/**< x position of focal center in units of pixels */
-	float cv;			/**< y position of focal center in units of pixels */
-	float focal;		/**< focal length in units of pixels */
-	float baseline;		/**< baseline of stereo cameras in units of meters */
-	_stereo_cali() { }
-	_stereo_cali(float _cu, float _cv, float _focal, float _baseline)
-	{
-		cu = _cu, cv = _cv;
-		focal = _focal, baseline = _baseline;
-	}
+  float cu;			/**< x position of focal center in units of pixels */
+  float cv;			/**< y position of focal center in units of pixels */
+  float focal;		/**< focal length in units of pixels */
+  float baseline;		/**< baseline of stereo cameras in units of meters */
+  _stereo_cali() { }
+  _stereo_cali(float _cu, float _cv, float _focal, float _baseline)
+  {
+    cu = _cu, cv = _cv;
+    focal = _focal, baseline = _baseline;
+  }
 }stereo_cali;
 
 /**
@@ -174,18 +164,18 @@ typedef struct _stereo_cali
 */
 typedef struct _exposure_param
 {
-	float	      m_step;		// adjustment step for auto exposure control (AEC). Default is 10.
-	float		  m_exposure_time;	// constant exposure time in mini-seconds. Range is 0.1~20. Default is 7.25.
-	unsigned int  m_expected_brightness;// constant expected brightness for AEC. Range is 50~200. Default is 85.
-	unsigned int  m_is_auto_exposure;	// 1: auto exposure; 0: constant exposure
-	int           m_camera_pair_index;	// index of Guidance Sensor
-	_exposure_param(){
-		m_step = 10;
-		m_exposure_time = 7.68;
-		m_expected_brightness = 85;
-		m_is_auto_exposure = 1;
-		m_camera_pair_index = 1;
-	}
+  float	      m_step;		// adjustment step for auto exposure control (AEC). Default is 10.
+  float		  m_exposure_time;	// constant exposure time in mini-seconds. Range is 0.1~20. Default is 7.25.
+  unsigned int  m_expected_brightness;// constant expected brightness for AEC. Range is 50~200. Default is 85.
+  unsigned int  m_is_auto_exposure;	// 1: auto exposure; 0: constant exposure
+  int           m_camera_pair_index;	// index of Guidance Sensor
+  _exposure_param(){
+    m_step = 10;
+    m_exposure_time = 7.68;
+    m_expected_brightness = 85;
+    m_is_auto_exposure = 1;
+    m_camera_pair_index = 1;
+  }
 }exposure_param;
 
 
@@ -195,43 +185,43 @@ typedef struct _exposure_param
 */
 typedef struct _motion
 {
-	unsigned int     frame_index;
-	unsigned int     time_stamp;
+  unsigned int     frame_index;
+  unsigned int     time_stamp;
 
-	int		         corresponding_imu_index;
+  int		         corresponding_imu_index;
 
-	float		     q0;
-	float		     q1;
-	float		     q2;
-	float		     q3;
-	int			     attitude_status;  // 0:invalid; 1:valid
+  float		     q0;
+  float		     q1;
+  float		     q2;
+  float		     q3;
+  int			     attitude_status;  // 0:invalid; 1:valid
 
-	float		     position_in_global_x;  // position in global frame: x
-	float		     position_in_global_y;  // position in global frame: y
-	float		     position_in_global_z;  // position in global frame: z
-	int			     position_status; // lower 3 bits are confidence. 0:invalid; 1:valid
+  float		     position_in_global_x;  // position in global frame: x
+  float		     position_in_global_y;  // position in global frame: y
+  float		     position_in_global_z;  // position in global frame: z
+  int			     position_status; // lower 3 bits are confidence. 0:invalid; 1:valid
 
-	float		     velocity_in_global_x;  // velocity in global frame: x
-	float		     velocity_in_global_y;  // velocity in global frame: y
-	float		     velocity_in_global_z;  // velocity in global frame: z
-	int			     velocity_status; // lower 3 bits are confidence. 0:invalid; 1:valid
+  float		     velocity_in_global_x;  // velocity in global frame: x
+  float		     velocity_in_global_y;  // velocity in global frame: y
+  float		     velocity_in_global_z;  // velocity in global frame: z
+  int			     velocity_status; // lower 3 bits are confidence. 0:invalid; 1:valid
 
-	float		     reserve_float[8];
-	int			     reserve_int[4];
+  float		     reserve_float[8];
+  int			     reserve_int[4];
 
-	float   	     uncertainty_location[3];// uncertainty of position
-	float   	     uncertainty_velocity[3];// uncertainty of velocity
+  float   	     uncertainty_location[3];// uncertainty of position
+  float   	     uncertainty_velocity[3];// uncertainty of velocity
 } motion;
 
 
 /**
- *     @fn typedef int (*user_call_back)( int event_type, int data_len, char *data );
- *     @brief Callback function prototype. The developer must write his/her own callback function in this form. In order to achieve best performance, it is suggested not performing any time-consuming processing in the callback function, but only copying the data out. Otherwise the transfer frequency might be slowed down.
- *     @param `event_type` use it to identify the data:image,imu,ultrasonic,velocity or obstacle distance
- *     @param `data_len` length of the input data
- *     @param `data` data read from Guidance.
- *     @return  `error code`. Non-zero if error occurs.
- */
+*     @fn typedef int (*user_call_back)( int event_type, int data_len, char *data );
+*     @brief Callback function prototype. The developer must write his/her own callback function in this form. In order to achieve best performance, it is suggested not performing any time-consuming processing in the callback function, but only copying the data out. Otherwise the transfer frequency might be slowed down.
+*     @param `event_type` use it to identify the data:image,imu,ultrasonic,velocity or obstacle distance
+*     @param `data_len` length of the input data
+*     @param `data` data read from Guidance.
+*     @return  `error code`. Non-zero if error occurs.
+*/
 typedef int (*user_call_back)( int event_type, int data_len, char *data );
 
 /**
@@ -242,10 +232,10 @@ typedef int (*user_call_back)( int event_type, int data_len, char *data );
 SDK_API int reset_config( void );
 
 /**
- *     @fn int init_transfer( void );
- *     @brief Initialize Guidance and create data transfer thread.
- *     @return  `error code`. Non-zero if error occurs.
- */
+*     @fn int init_transfer( void );
+*     @brief Initialize Guidance and create data transfer thread.
+*     @return  `error code`. Non-zero if error occurs.
+*/
 SDK_API int init_transfer( void );
 
 
@@ -326,10 +316,10 @@ SDK_API int set_image_frequecy( e_image_data_frequecy frequecy );
 SDK_API int get_device_type(e_device_type* device_type);
 
 /**
- *     @fn int start_transfer();
- *     @brief Inform Guidance to start data transfer.
- *     @return `error code`. Non-zero if error occurs.
- */
+*     @fn int start_transfer();
+*     @brief Inform Guidance to start data transfer.
+*     @return `error code`. Non-zero if error occurs.
+*/
 SDK_API int start_transfer( void );
 
 /**

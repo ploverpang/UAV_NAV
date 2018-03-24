@@ -13,6 +13,7 @@
 #define WIDTH 320
 #define HEIGHT 240
 #define IMAGE_SIZE (HEIGHT * WIDTH)
+#define PIXEL_PER_ANGLE 4.2857
 
 #define RETURN_IF_ERR(err_code) { \
   if(err_code) { \
@@ -39,9 +40,9 @@ std::ostream& operator<<(std::ostream& out, const e_sdk_err_code value) {
     PROCESS_VAL(e_libusb_io_err);
     PROCESS_VAL(e_timeout);
     default:
-      strcpy(str, "Unknown error");
-      s = str;
-      break;
+    strcpy(str, "Unknown error");
+    s = str;
+    break;
   }
 
   #undef PROCESS_VAL

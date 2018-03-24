@@ -11,6 +11,7 @@ geometry_msgs::QuaternionStamped attitude_state;
 
 double       roll, pitch, yaw;
 double       angle                       = 0;
+double       trans[2][3]                 = {{1,0,0},{0,1,0}};
 bool         show_info                   = true;
 uint8_t      camera_select               = 0;
 std::string  frame_id                    = "front";
@@ -94,36 +95,40 @@ int main(int argc, char** argv) {
 
       switch (camera_select) {
         case 0:
-        camera_id = e_vbus2;
-        frame_id = "right";
-        angle = pitch;
-        camera_select = 1;
-        break;
+          camera_id = e_vbus2;
+          frame_id = "right";
+          angle = pitch;
+          trans[1][2] = roll*PIXEL_PER_ANGLE;
+          camera_select = 1;
+          break;
         case 1:
-        camera_id = e_vbus3;
-        frame_id = "rear";
-        angle = roll;
-        camera_select = 2;
-        break;
+          camera_id = e_vbus3;
+          frame_id = "rear";
+          angle = roll;
+          trans[1][2] = pitch*PIXEL_PER_ANGLE;
+          camera_select = 2;
+          break;
         case 2:
-        camera_id = e_vbus4;
-        frame_id = "left";
-        angle = pitch;
-        camera_select = 3;
-        break;
+          camera_id = e_vbus4;
+          frame_id = "left";
+          angle = pitch;
+          trans[1][2] = roll*PIXEL_PER_ANGLE;
+          camera_select = 3;
+          break;
         case 3:
-        camera_id = e_vbus5;
-        frame_id = "down";
-        angle = yaw;
-        camera_select = 4;
-        break;
+          camera_id = e_vbus5;
+          frame_id = "down";
+          angle = yaw;
+          camera_select = 4;
+          break;
         case 4:
-        camera_id = e_vbus1;
-        frame_id = "front";
-        angle = roll;
-        camera_select = 0;
-        start_time = ros::Time::now();
-        break;
+          camera_id = e_vbus1;
+          frame_id = "front";
+          angle = roll;
+          trans[1][2] = pitch*PIXEL_PER_ANGLE;
+          camera_select = 0;
+          start_time = ros::Time::now();
+          break;
       }
 
       // Select data
@@ -161,11 +166,13 @@ int sensor_callback(int data_type, int data_len, char *content) {
   if(e_image == data_type && NULL != content) {
     image_data* data = (image_data*)content;
 
-    cv::Mat M = getRotationMatrix2D(cen, angle, 1);
+    cv::Mat M_rot = getRotationMatrix2D(cen, angle, 1);
+    cv::Mat M_trans = cv::Mat(cv::Size(2,3), CV_32FC1, &trans);
 
     if(data->m_greyscale_image_left[camera_id]) {
       memcpy(g_greyscale_image_left.data, data->m_greyscale_image_left[camera_id], IMAGE_SIZE);
-      warpAffine(g_greyscale_image_left, g_greyscale_image_left, M, cv::Size(WIDTH, HEIGHT));
+      warpAffine(g_greyscale_image_left, g_greyscale_image_left, M_rot, cv::Size(WIDTH, HEIGHT));
+      warpAffine(g_greyscale_image_left, g_greyscale_image_left, M_trans, cv::Size(WIDTH, HEIGHT));
       if(show_info) imshow("left",  g_greyscale_image_left);
 
       // Publish left greyscale image
@@ -179,7 +186,8 @@ int sensor_callback(int data_type, int data_len, char *content) {
 
     if(data->m_greyscale_image_right[camera_id]) {
       memcpy(g_greyscale_image_right.data, data->m_greyscale_image_right[camera_id], IMAGE_SIZE);
-      warpAffine(g_greyscale_image_right, g_greyscale_image_right, M, cv::Size(WIDTH, HEIGHT));
+      warpAffine(g_greyscale_image_right, g_greyscale_image_right, M_rot, cv::Size(WIDTH, HEIGHT));
+      warpAffine(g_greyscale_image_left, g_greyscale_image_left, M_trans, cv::Size(WIDTH, HEIGHT));
       if(show_info) imshow("right", g_greyscale_image_right);
 
       // Publish right greyscale image
