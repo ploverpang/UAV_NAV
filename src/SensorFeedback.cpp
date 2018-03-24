@@ -7,6 +7,10 @@ ros::Publisher right_image_pub;
 ros::Publisher obstacle_distance_pub;
 ros::Publisher ultrasonic_pub;
 
+geometry_msgs::QuaternionStamped attitude_state;
+
+double       roll, pitch, yaw;
+double       angle                       = 0;
 bool         show_info                   = true;
 uint8_t      camera_select               = 0;
 std::string  frame_id                    = "front";
@@ -17,11 +21,17 @@ cv::Mat      g_greyscale_image_left(HEIGHT, WIDTH, CV_8UC1);
 cv::Mat      g_greyscale_image_right(HEIGHT, WIDTH, CV_8UC1);
 cv::Mat      g_depth(HEIGHT,WIDTH,CV_16SC1);
 cv::Mat      depth8(HEIGHT, WIDTH, CV_8UC1);
+cv::Point2f  cen(WIDTH/2, HEIGHT/2);
 
 int main(int argc, char** argv) {
   // Initialize ROS
   ros::init(argc, argv, "SensorFeedback");
   ros::NodeHandle nh;
+
+  //Subsriber
+  ros::Subscriber attitude = nh.subscribe("dji_sdk/attitude", 1, &attitude_callback);
+
+  //Publishers
   left_image_pub			  = nh.advertise<sensor_msgs::Image>    ("/rob666/guidance/left_image",        1);
   right_image_pub			  = nh.advertise<sensor_msgs::Image>    ("/rob666/guidance/right_image",       1);
   obstacle_distance_pub	= nh.advertise<sensor_msgs::LaserScan>("/rob666/guidance/obstacle_distance", 1);
@@ -33,21 +43,21 @@ int main(int argc, char** argv) {
   RETURN_IF_ERR(err_code);
 
   // Check sensor online status
-  int online_status[CAMERA_PAIR_NUM];
+  int online_status[CAMERA_NUM];
   err_code = get_online_status(online_status);
   RETURN_IF_ERR(err_code);
   std::cout<<"Sensor online status: ";
-  for(int i=0; i<CAMERA_PAIR_NUM; i++) {
+  for(int i=0; i<CAMERA_NUM; i++) {
     std::cout<<online_status[i]<<" ";
   }
   std::cout<<std::endl;
 
   // Get calibration parameters
-  stereo_cali cali[CAMERA_PAIR_NUM];
+  stereo_cali cali[CAMERA_NUM];
   err_code = get_stereo_cali(cali);
   RETURN_IF_ERR(err_code);
   std::cout<<"cu\tcv\tfocal\tbaseline\n";
-  for(int i=0; i<CAMERA_PAIR_NUM; i++) {
+  for(int i=0; i<CAMERA_NUM; i++) {
     std::cout<<cali[i].cu<<"\t"<<cali[i].cv<<"\t"<<cali[i].focal<<"\t"<<cali[i].baseline<<std::endl;
   }
 
@@ -86,26 +96,31 @@ int main(int argc, char** argv) {
         case 0:
         camera_id = e_vbus2;
         frame_id = "right";
+        angle = pitch;
         camera_select = 1;
         break;
         case 1:
         camera_id = e_vbus3;
         frame_id = "rear";
+        angle = roll;
         camera_select = 2;
         break;
         case 2:
         camera_id = e_vbus4;
         frame_id = "left";
+        angle = pitch;
         camera_select = 3;
         break;
         case 3:
         camera_id = e_vbus5;
         frame_id = "down";
+        angle = yaw;
         camera_select = 4;
         break;
         case 4:
         camera_id = e_vbus1;
         frame_id = "front";
+        angle = roll;
         camera_select = 0;
         start_time = ros::Time::now();
         break;
@@ -146,8 +161,11 @@ int sensor_callback(int data_type, int data_len, char *content) {
   if(e_image == data_type && NULL != content) {
     image_data* data = (image_data*)content;
 
+    cv::Mat M = getRotationMatrix2D(cen, angle, 1);
+
     if(data->m_greyscale_image_left[camera_id]) {
       memcpy(g_greyscale_image_left.data, data->m_greyscale_image_left[camera_id], IMAGE_SIZE);
+      warpAffine(g_greyscale_image_left, g_greyscale_image_left, M, cv::Size(WIDTH, HEIGHT));
       if(show_info) imshow("left",  g_greyscale_image_left);
 
       // Publish left greyscale image
@@ -161,6 +179,7 @@ int sensor_callback(int data_type, int data_len, char *content) {
 
     if(data->m_greyscale_image_right[camera_id]) {
       memcpy(g_greyscale_image_right.data, data->m_greyscale_image_right[camera_id], IMAGE_SIZE);
+      warpAffine(g_greyscale_image_right, g_greyscale_image_right, M, cv::Size(WIDTH, HEIGHT));
       if(show_info) imshow("right", g_greyscale_image_right);
 
       // Publish right greyscale image
@@ -181,7 +200,7 @@ int sensor_callback(int data_type, int data_len, char *content) {
     if(show_info) {
       printf("frame index: %d, stamp: %d\n", oa->frame_index, oa->time_stamp);
       printf("obstacle distance:");
-      for(int i = 0; i < CAMERA_PAIR_NUM; ++i) {
+      for(int i = 0; i < CAMERA_NUM; ++i) {
         printf(" %f ", 0.01f * oa->distance[i]);
       }
       printf( "\n" );
@@ -189,10 +208,10 @@ int sensor_callback(int data_type, int data_len, char *content) {
 
     // Publish obstacle distance
     sensor_msgs::LaserScan g_oa;
-    g_oa.ranges.resize(CAMERA_PAIR_NUM);
+    g_oa.ranges.resize(CAMERA_NUM);
     g_oa.header.frame_id = frame_id;
     g_oa.header.stamp = ros::Time::now();
-    for(int i = 0; i < CAMERA_PAIR_NUM; ++i) {
+    for(int i = 0; i < CAMERA_NUM; ++i) {
       g_oa.ranges[i] = 0.01f * oa->distance[i];
     }
     obstacle_distance_pub.publish(g_oa);
@@ -203,18 +222,18 @@ int sensor_callback(int data_type, int data_len, char *content) {
     ultrasonic_data *ultrasonic = (ultrasonic_data*)content;
     if(show_info) {
       printf("frame index: %d, stamp: %d\n", ultrasonic->frame_index, ultrasonic->time_stamp);
-      for(int d = 0; d < CAMERA_PAIR_NUM; ++d) {
+      for(int d = 0; d < CAMERA_NUM; ++d) {
         printf("ultrasonic distance: %f, reliability: %d\n", ultrasonic->ultrasonic[d] * 0.001f, (int)ultrasonic->reliability[d]);
       }
     }
 
     // Publish ultrasonic data
     sensor_msgs::LaserScan g_ul;
-    g_ul.ranges.resize(CAMERA_PAIR_NUM);
-    g_ul.intensities.resize(CAMERA_PAIR_NUM);
+    g_ul.ranges.resize(CAMERA_NUM);
+    g_ul.intensities.resize(CAMERA_NUM);
     g_ul.header.frame_id = frame_id;
     g_ul.header.stamp = ros::Time::now();
-    for(int d = 0; d < CAMERA_PAIR_NUM; ++d) {
+    for(int d = 0; d < CAMERA_NUM; ++d) {
       g_ul.ranges[d] = 0.001f * ultrasonic->ultrasonic[d];
       g_ul.intensities[d] = 1.0 * ultrasonic->reliability[d];
     }
@@ -225,4 +244,15 @@ int sensor_callback(int data_type, int data_len, char *content) {
   g_event.set_event();
 
   return 0;
+}
+
+void attitude_callback(const geometry_msgs::QuaternionStamped::ConstPtr& msg) {
+  attitude_state = *msg;
+
+  tf::Quaternion q = tf::Quaternion(attitude_state.quaternion.x,
+                                    attitude_state.quaternion.y,
+                                    attitude_state.quaternion.z,
+                                    attitude_state.quaternion.w);
+  tf::Matrix3x3 m(q);
+  m.getRPY(roll, pitch, yaw);
 }

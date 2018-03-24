@@ -31,20 +31,20 @@ include_directories(
 add_executable(sensorFeedback
   src/SensorFeedback.cpp
   src/DJI_utility.cpp)
-
 target_link_libraries(sensorFeedback
-  ${OpenCV_LIBS}
   ${catkin_LIBRARIES}
+  ${OpenCV_LIBS}
+  ${DJIOSDK_LIBRARIES}
   DJI_guidance
   usb-1.0
   yaml-cpp
 )
+add_dependencies(sensorFeedback dji_sdk_generate_messages_cpp)
 
 add_executable(depthGeneration
   src/DepthGeneration.cpp
   src/SupportingALG.cpp
 )
-
 target_link_libraries(depthGeneration
   ${OpenCV_LIBS}
   ${catkin_LIBRARIES}
