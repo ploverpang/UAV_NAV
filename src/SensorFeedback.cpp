@@ -7,9 +7,8 @@ ros::Publisher right_image_pub;
 ros::Publisher obstacle_distance_pub;
 ros::Publisher ultrasonic_pub;
 
-geometry_msgs::QuaternionStamped attitude_state;
+geometry_msgs::Vector3Stamped    rpy;
 
-double       roll, pitch, yaw;
 double       angle                       = 0;
 double       trans[2][3]                 = {{1,0,0},{0,1,0}};
 bool         show_info                   = true;
@@ -30,7 +29,7 @@ int main(int argc, char** argv) {
   ros::NodeHandle nh;
 
   //Subsriber
-  ros::Subscriber attitude = nh.subscribe("dji_sdk/attitude", 1, &attitude_callback);
+  ros::Subscriber rpy_sub  = nh.subscribe("rob666/roll_pitch_yaw",  1, &rpy_callback);
 
   //Publishers
   left_image_pub			  = nh.advertise<sensor_msgs::Image>    ("/rob666/guidance/left_image",        1);
@@ -97,35 +96,35 @@ int main(int argc, char** argv) {
         case 0:
           camera_id = e_vbus2;
           frame_id = "right";
-          angle = pitch;
-          trans[1][2] = roll*PIXEL_PER_ANGLE;
+          angle = rpy.vector.y;
+          trans[1][2] = rpy.vector.x*PIXEL_PER_ANGLE;
           camera_select = 1;
           break;
         case 1:
           camera_id = e_vbus3;
           frame_id = "rear";
-          angle = roll;
-          trans[1][2] = pitch*PIXEL_PER_ANGLE;
+          angle = rpy.vector.x;
+          trans[1][2] = rpy.vector.y*PIXEL_PER_ANGLE;
           camera_select = 2;
           break;
         case 2:
           camera_id = e_vbus4;
           frame_id = "left";
-          angle = pitch;
-          trans[1][2] = roll*PIXEL_PER_ANGLE;
+          angle = rpy.vector.y;
+          trans[1][2] = rpy.vector.x*PIXEL_PER_ANGLE;
           camera_select = 3;
           break;
         case 3:
           camera_id = e_vbus5;
           frame_id = "down";
-          angle = yaw;
+          angle = rpy.vector.z;
           camera_select = 4;
           break;
         case 4:
           camera_id = e_vbus1;
           frame_id = "front";
-          angle = roll;
-          trans[1][2] = pitch*PIXEL_PER_ANGLE;
+          angle = rpy.vector.x;
+          trans[1][2] = rpy.vector.y*PIXEL_PER_ANGLE;
           camera_select = 0;
           start_time = ros::Time::now();
           break;
@@ -254,13 +253,6 @@ int sensor_callback(int data_type, int data_len, char *content) {
   return 0;
 }
 
-void attitude_callback(const geometry_msgs::QuaternionStamped::ConstPtr& msg) {
-  attitude_state = *msg;
-
-  tf::Quaternion q = tf::Quaternion(attitude_state.quaternion.x,
-                                    attitude_state.quaternion.y,
-                                    attitude_state.quaternion.z,
-                                    attitude_state.quaternion.w);
-  tf::Matrix3x3 m(q);
-  m.getRPY(roll, pitch, yaw);
+void rpy_callback(const geometry_msgs::Vector3Stamped::ConstPtr& msg) {
+	rpy = *msg;
 }

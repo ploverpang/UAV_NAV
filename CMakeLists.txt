@@ -53,6 +53,22 @@ target_link_libraries(depthGeneration
   yaml-cpp
 )
 
+add_executable(droneControl
+  src/DroneControl.cpp
+)
+target_link_libraries(droneControl
+  ${catkin_LIBRARIES}
+  ${DJIOSDK_LIBRARIES}
+)
+add_dependencies(droneControl dji_sdk_generate_messages_cpp)
+
+add_executable(vfh
+  src/VFH.cpp
+)
+target_link_libraries(vfh
+  ${catkin_LIBRARIES}
+)
+
 #install(DIRECTORY launch
 #  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
 #)

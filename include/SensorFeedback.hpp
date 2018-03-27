@@ -5,7 +5,7 @@
 #include <tf/tf.h>
 #include <cv_bridge/cv_bridge.h>
 #include "dji_sdk/dji_sdk.h"
-#include <geometry_msgs/QuaternionStamped.h>
+#include <geometry_msgs/Vector3Stamped.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/LaserScan.h> //obstacle distance & ultrasonic
 #include <opencv2/opencv.hpp>
@@ -51,5 +51,6 @@ std::ostream& operator<<(std::ostream& out, const e_sdk_err_code value) {
 
 int sensor_callback(int data_type, int data_len, char *content);
 void attitude_callback(const geometry_msgs::QuaternionStamped::ConstPtr& msg);
+void rpy_callback(const geometry_msgs::Vector3Stamped::ConstPtr& msg);
 
 #endif //SENSORFEEDBACK_HPP
