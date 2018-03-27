@@ -1,20 +1,22 @@
 #include "VFH.hpp"
 
 // Inputs
-const int s = 10; // Number of angular sectors
-double target[2] = {10, 10}; // Target point for the drone
+const int s      = 10;       // Number of angular sectors
+double target[2] = {10, 10}; // Target for the drone
 
 // Vars
-ros::Publisher vel_cmd_pub;
-geometry_msgs::PointStamped local_position;
+ros::Publisher                vel_cmd_pub;
+geometry_msgs::PointStamped   local_position;
 geometry_msgs::Vector3Stamped rpy;
-const unsigned alpha = 360 / s;
-const unsigned s_max = 16;
-double mu[3] = {5,2,2};
-double k_d, prev_k_d, k_target = 0.0;
-std::vector<int> k_r;
-std::vector<int> k_l;
-std::vector<double> c;
+const unsigned                alpha           = 360 / s; // Sector angle
+const unsigned                s_max           = 16;      // Min number of sectors for a wide valley
+double                        mu[3]           = {5,2,2}; // Cost parameters
+double                        k_d             = 0.0;     // Direction of motion
+double                        prev_k_d        = 0.0;     // Previous direction of motion
+double                        k_target        = 0.0;     // Target direction
+std::vector<int>              k_r;                       // Right borders
+std::vector<int>              k_l;                       // Left borders
+std::vector<double>           c;                         // Candidate directions
 
 // DEBUGG ONLY
 unsigned masked_hist[s] = {1,1,1,1,1,1,0,1,0,0};
@@ -36,7 +38,7 @@ int main(int argc, char** argv) {
   while (ros::ok()) {
     get_borders();
     get_candidates();
-    cost_func();
+    calc_cost();
     publish_cmd();
 
     ros::spinOnce();
@@ -54,7 +56,6 @@ void local_position_callback(const geometry_msgs::PointStamped::ConstPtr& msg) {
   double angle_diff = target_angle - rpy.vector.z;
   angle_diff = wrap_to_pi(angle_diff);
   k_target = RAD2DEG(angle_diff) / alpha;
-  std::cout<<"angle_diff: "<<k_target<<std::endl;
 }
 
 void rpy_callback(const geometry_msgs::Vector3Stamped::ConstPtr& msg) {
@@ -62,14 +63,14 @@ void rpy_callback(const geometry_msgs::Vector3Stamped::ConstPtr& msg) {
 }
 
 // Functions
-void get_borders(){
+void get_borders() {
   k_l.clear();
   k_r.clear();
 
   unsigned current_val = masked_hist[0];
-  for(unsigned i = 1; i < s; i++){
-    if(masked_hist[i] != current_val){
-      if(masked_hist[i] == 1){
+  for(unsigned i = 1; i < s; i++) {
+    if(masked_hist[i] != current_val) {
+      if(masked_hist[i] == 1) {
         k_r.push_back(i);
         current_val = 1;
       } else{
@@ -79,83 +80,71 @@ void get_borders(){
     }
   }
 
-  if(k_r.size() != k_l.size() && masked_hist[0] == 0){
+  if(k_r.size() != k_l.size() && masked_hist[0] == 0) {
     k_l.insert(k_l.begin(), 0);
   }
-  if(k_r.size() != k_l.size() && masked_hist[0] == 1){
+  if(k_r.size() != k_l.size() && masked_hist[0] == 1) {
     k_r.push_back(0);
   }
-  if(masked_hist[0] == masked_hist[s-1] && masked_hist[0] == 0 && k_r.size() != 0){
+  if(masked_hist[0] == masked_hist[s-1] && masked_hist[0] == 0 && k_r.size() != 0) {
     k_r.push_back(k_r.front());
     k_r.erase(k_r.begin());
   }
-
-  for(const double &hist_ptr : k_l){
-    std::cout << hist_ptr << std::endl;
-  }
-  std::cout<<std::endl<<std::endl;
-  for(const double &hist_ptr : k_r){
-    std::cout << hist_ptr << std::endl;
-  }
-  std::cout<<std::endl<<std::endl<<std::endl<<std::endl<<std::endl<<std::endl;
 }
 
-void get_candidates(){
+void get_candidates() {
   c.clear();
-  for(unsigned i = 0; i < k_l.size(); i++){
-    if(k_l.at(i) > k_r.at(i)){
+
+  for(unsigned i = 0; i < k_l.size(); i++) {
+    if(k_l.at(i) > k_r.at(i)) {
       unsigned valley_size = k_r.at(i) - k_l.at(i) + s;
-      if(valley_size <= s_max){
+      if(valley_size <= s_max) {
         double c_tmp = (k_r.at(i) + k_l.at(i) - s) / 2.0;
-        if(c_tmp < 0){
+        if(c_tmp < 0) {
           c.push_back(c_tmp + s);
         } else{
           c.push_back(c_tmp);
         }
-      } else{
+      } else {
         double c_tmp = k_r.at(i) - (s_max / 2.0);
-        if(c_tmp < 0){
+        if(c_tmp < 0) {
           c.push_back(c_tmp + s);
-        } else{
+        } else {
           c.push_back(c_tmp);
         }
         c_tmp = k_l.at(i) + (s_max / 2.0);
-        if(c_tmp >= s){
+        if(c_tmp >= s) {
           c.push_back(c_tmp - s);
-        } else{
+        } else {
           c.push_back(c_tmp);
         }
         if((k_target < k_r.at(i) && k_target + s > k_l.at(i)) || (k_target > k_l.at(i) && k_target < k_r.at(i) + s)) {
           c.push_back(k_target);
         }
       }
-    } else{
+    } else {
       unsigned valley_size = k_r.at(i) - k_l.at(i);
-      if(valley_size <= s_max){
+      if(valley_size <= s_max) {
         c.push_back((k_r.at(i) + k_l.at(i)) / 2.0);
-      } else{
+      } else {
         c.push_back(k_r.at(i) - (s_max / 2.0));
         c.push_back(k_l.at(i) + (s_max / 2.0));
-        if(k_target > k_l.at(i) && k_target < k_r.at(i)){
+        if(k_target > k_l.at(i) && k_target < k_r.at(i)) {
           c.push_back(k_target);
         }
       }
     }
   }
-  for(auto &pp : c){
-    std::cout<<"c: "<<pp<<std::endl;
-  }
 }
 
-void cost_func(){
-  if(k_l.size() != 0 && k_r.size() != 0){
-    double g = 2222222.0;
-    for(auto &steering_dir : c){
+void calc_cost() {
+  if(k_l.size() != 0 && k_r.size() != 0) {
+    double g = 16384.0;
+    for(auto &steering_dir : c) {
       double tmp_g = mu[0] * delta_c(steering_dir, k_target) +
                      mu[1] * delta_c(steering_dir, RAD2DEG(rpy.vector.z)/alpha) +
                      mu[2] * delta_c(steering_dir, prev_k_d);
-      std::cout<<"g: "<<tmp_g<<std::endl;
-      if(tmp_g < g){
+      if(tmp_g < g) {
         k_d = steering_dir;
         g = tmp_g;
       }
@@ -165,23 +154,20 @@ void cost_func(){
 }
 
 void publish_cmd() {
-  double theta = wrap_to_pi(DEG2RAD(k_d * alpha));
-  std::cout<<"theta: "<<theta<<std::endl;
-
   geometry_msgs::TwistStamped vel_cmd;
-  vel_cmd.header.stamp = ros::Time::now();
+  vel_cmd.header.stamp    = ros::Time::now();
   vel_cmd.header.frame_id = "vfh_vel_cmd";
-  vel_cmd.twist.linear.x = 1;
-  vel_cmd.twist.angular.z = theta;
+  vel_cmd.twist.linear.x  = 1; // This needs to be correctly controlled
+  vel_cmd.twist.angular.z = wrap_to_pi(DEG2RAD(k_d * alpha));
   vel_cmd_pub.publish(vel_cmd);
 }
 
-double delta_c(double c1, double c2){
+double delta_c(double c1, double c2) {
   return std::min(std::min(fabs(c1-c2-s), fabs(c1-c2+s)),fabs(c1-c2));
 }
 
-double wrap_to_pi(double theta){
-  theta = std::fmod(theta + C_PI, 2*C_PI);
-  if(theta < 0) theta += 2 * C_PI;
-  return theta - C_PI;
+double wrap_to_pi(double angle) {
+  angle = std::fmod(angle + C_PI, 2*C_PI);
+  if(angle < 0) angle += 2 * C_PI;
+  return angle - C_PI;
 }
