@@ -149,8 +149,15 @@ void calc_cost() {
         g = tmp_g;
       }
     }
-    prev_k_d = k_d;
+  } else {
+    if(masked_hist[0] == 0) {
+      k_d = k_target;
+    } else {
+      k_d = 0.0;
+      // Handle this correctly. All directions are blocked.
+    }
   }
+  prev_k_d = k_d;
 }
 
 void publish_cmd() {
@@ -163,7 +170,7 @@ void publish_cmd() {
 }
 
 double delta_c(double c1, double c2) {
-  return std::min(std::min(fabs(c1-c2-s), fabs(c1-c2+s)),fabs(c1-c2));
+  return std::min(std::min(std::fabs(c1-c2-s), std::fabs(c1-c2+s)), std::fabs(c1-c2));
 }
 
 double wrap_to_pi(double angle) {
