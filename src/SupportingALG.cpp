@@ -64,10 +64,11 @@ void show_histogram(std::string const& name, cv::Mat1b const& image){
     cv::imshow(name, hist_image);
 }
 
-cv::Mat maskOutliers(cv::Mat src_img, cv::Mat prevFrame, std::list<cv::Mat> &maskBuffer, int nFrames, int diffThreshold){
+cv::Mat maskOutliers(cv::Mat src_img, cv::Mat prevFrame, int nFrames, int diffThreshold){
     cv::Mat mask = Mat(src_img.size(), CV_8UC1, cv::Scalar(0));
     cv::Mat dst_img = cv::Mat::zeros(src_img.size(), CV_8UC1);
     cv::Mat maskSum = Mat(src_img.size(), CV_32FC1, Scalar(0));
+    static std::list<cv::Mat> maskBuffer;  // Container for stored masks;
 
     for (int x_pix=0; x_pix<src_img.cols; x_pix++){
         for (int y_pix=0; y_pix<src_img.rows; y_pix++){
@@ -112,8 +113,19 @@ cv::Mat roundMorph(Mat src_img, int byNumber, int xy){
 cv::Mat dispToMeter(Mat src_img){
     Mat distMap = src_img;
     distMap.convertTo(distMap, CV_16UC1);
-    distMap *= 16.0; // fractional bits of StereoSGBM disparity maps, I'm not sure what role this plays. ¯\_(ツ)_/¯
-    distMap = (247.35*150)/distMap; // disparity map values to 'mm'
+    distMap *= 16.0*3.6; // fractional bits of StereoSGBM disparity maps
+    distMap = (247.35*150)/distMap; // disparity map values to 'm'
     distMap.convertTo(distMap, CV_8UC1); 
     return distMap;
+}
+
+cv::Mat fovReduction(cv::Mat src_img){
+    static double newAngle = atan2(clearance, cameraRange);
+    const double FOV_y = 45*M_PI/180;
+    static int cutoffPixel = (src_img.rows-(round(double(src_img.rows)*(FOV_y-newAngle*2)/FOV_y)))/2;
+    
+    static cv::Rect crop(0, cutoffPixel, src_img.cols, src_img.rows-2*cutoffPixel);
+    cv::Mat cropped = src_img(crop);
+
+    return cropped;
 }
