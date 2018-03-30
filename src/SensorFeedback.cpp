@@ -10,7 +10,7 @@ ros::Publisher ultrasonic_pub;
 geometry_msgs::Vector3Stamped    rpy;
 
 double       angle                       = 0;
-double       trans[2][3]                 = {{1,0,0},{0,1,0}};
+double       t_y                         = 0;
 bool         show_info                   = true;
 uint8_t      camera_select               = 0;
 std::string  frame_id                    = "front";
@@ -97,34 +97,28 @@ int main(int argc, char** argv) {
           camera_id = e_vbus2;
           frame_id = "right";
           angle = rpy.vector.y;
-          trans[1][2] = rpy.vector.x*PIXEL_PER_ANGLE;
+          t_y = rpy.vector.x*PIXEL_PER_ANGLE;
           camera_select = 1;
           break;
         case 1:
           camera_id = e_vbus3;
           frame_id = "rear";
           angle = rpy.vector.x;
-          trans[1][2] = rpy.vector.y*PIXEL_PER_ANGLE;
+          t_y = rpy.vector.y*PIXEL_PER_ANGLE;
           camera_select = 2;
           break;
         case 2:
           camera_id = e_vbus4;
           frame_id = "left";
           angle = rpy.vector.y;
-          trans[1][2] = rpy.vector.x*PIXEL_PER_ANGLE;
+          t_y = rpy.vector.x*PIXEL_PER_ANGLE;
           camera_select = 3;
           break;
         case 3:
-          camera_id = e_vbus5;
-          frame_id = "down";
-          angle = rpy.vector.z;
-          camera_select = 4;
-          break;
-        case 4:
           camera_id = e_vbus1;
           frame_id = "front";
           angle = rpy.vector.x;
-          trans[1][2] = rpy.vector.y*PIXEL_PER_ANGLE;
+          t_y = rpy.vector.y*PIXEL_PER_ANGLE;
           camera_select = 0;
           start_time = ros::Time::now();
           break;
@@ -166,8 +160,7 @@ int sensor_callback(int data_type, int data_len, char *content) {
     image_data* data = (image_data*)content;
 
     cv::Mat M_rot = getRotationMatrix2D(cen, angle, 1);
-    //cv::Mat M_trans = cv::Mat(cv::Size(2,3), CV_32FC1, &trans);
-    cv::Mat M_trans = (cv::Mat_<double>(2,3) << 1, 0, 0, 0, 1, 0);
+    cv::Mat M_trans = (cv::Mat_<double>(2,3) << 1, 0, 0, 0, 1, t_y);
 
     if(data->m_greyscale_image_left[camera_id]) {
       memcpy(g_greyscale_image_left.data, data->m_greyscale_image_left[camera_id], IMAGE_SIZE);

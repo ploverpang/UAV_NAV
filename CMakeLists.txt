@@ -45,19 +45,6 @@ add_executable(depthGeneration
   src/DepthGeneration.cpp
   src/SupportingALG.cpp
 )
-
-add_executable(histogramGrid
-  src/HistogramGrid.cpp
-)
-
-target_link_libraries(histogramGrid
-  ${OpenCV_LIBS}
-  ${catkin_LIBRARIES}
-  DJI_guidance
-  usb-1.0
-  yaml-cpp
-)
-
 target_link_libraries(depthGeneration
   ${OpenCV_LIBS}
   ${catkin_LIBRARIES}
