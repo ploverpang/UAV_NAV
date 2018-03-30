@@ -55,8 +55,6 @@ int main(int argc, char** argv) {
 
   //ros::Rate r(1); //1Hz
 
-  ROS_INFO("GOOD");
-
   while (ros::ok()) {
     binary_hist();
     masked_polar_histogram();
@@ -65,7 +63,6 @@ int main(int argc, char** argv) {
     calc_cost();
     publish_cmd();
 
-    ROS_INFO("");
     ros::spinOnce();
     //r.sleep();
   }
@@ -136,8 +133,9 @@ void fillHistogramGrid(sensor_msgs::LaserScan msg_laser) {
   else if (cameraID == "rear"){scalar = 2;}
   else if (cameraID == "right"){scalar = 3;}
   else {return;} // don't need down facing camera
-  float yaw = rpy.vector.z;
-  yaw *= scalar*M_PI/2;
+  //float yaw = rpy.vector.z;
+  float yaw = 0;
+  yaw += scalar*M_PI/2;
 
   // Increment cell values at laserPoint with GRO mask and decrement cells along a line between center and laserPoint
   static int increment = 3;

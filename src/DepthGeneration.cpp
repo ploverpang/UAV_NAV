@@ -134,7 +134,7 @@ void DepthProcessing(cv::Mat src_img){
     				//if (src_img.at<unsigned char>(y_grid*slicePixelHEIGHT+y_pix, x_grid*slicePixelWIDTH+x_pix) != 0 && (y_grid*slicePixelHEIGHT+y_pix, x_grid*slicePixelWIDTH+x_pix) < cameraRange){
     				//	sorted1D.push_back(src_img.at<unsigned char>(y_grid*slicePixelHEIGHT+y_pix, x_grid*slicePixelWIDTH+x_pix));
     				//}
-    				if (src_img.at<unsigned char>(y_grid*slicePixelHEIGHT+y_pix, x_grid*slicePixelWIDTH+x_pix) != 0 && (y_grid*slicePixelHEIGHT+y_pix, x_grid*slicePixelWIDTH+x_pix) < cameraRange){
+    				if (src_img.at<unsigned char>(y_grid*slicePixelHEIGHT+y_pix, x_grid*slicePixelWIDTH+x_pix) != 0 && src_img.at<unsigned char>(y_grid*slicePixelHEIGHT+y_pix, x_grid*slicePixelWIDTH+x_pix) < cameraRange){
     				average += src_img.at<unsigned char>(y_grid*slicePixelHEIGHT+y_pix, x_grid*slicePixelWIDTH+x_pix);
     				counter++;
     				}
@@ -176,7 +176,7 @@ void DepthProcessing(cv::Mat src_img){
     		}
     	}
     }
-    cv:imshow("Depth cubes", depthCubes);
+    //cv:imshow("Depth cubes", depthCubes);
     return;
 }
 
