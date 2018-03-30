@@ -166,7 +166,8 @@ int sensor_callback(int data_type, int data_len, char *content) {
     image_data* data = (image_data*)content;
 
     cv::Mat M_rot = getRotationMatrix2D(cen, angle, 1);
-    cv::Mat M_trans = cv::Mat(cv::Size(2,3), CV_32FC1, &trans);
+    //cv::Mat M_trans = cv::Mat(cv::Size(2,3), CV_32FC1, &trans);
+    cv::Mat M_trans = (cv::Mat_<double>(2,3) << 1, 0, 0, 0, 1, 0);
 
     if(data->m_greyscale_image_left[camera_id]) {
       memcpy(g_greyscale_image_left.data, data->m_greyscale_image_left[camera_id], IMAGE_SIZE);

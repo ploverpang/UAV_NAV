@@ -80,6 +80,7 @@ add_executable(vfh
 )
 target_link_libraries(vfh
   ${catkin_LIBRARIES}
+  ${OpenCV_LIBS}
 )
 
 #install(DIRECTORY launch

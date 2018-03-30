@@ -192,7 +192,7 @@ int main(int argc, char** argv) {
 	while(ros::ok()) {
     if(imgFlag >= 2 && imgFlag%2==0 && left_id.compare(right_id) == 0) {  // Initial IMG rendering delays the main loop
     	cv::Mat depthMap = CreateDepthImage(left_img1, right_img1);
-    	cv::imshow("To meter *10", depthMap*10);
+    	cv::imshow("To meter", depthMap);
     	cv::waitKey(1);
     	imgFlag = 0;
     }
