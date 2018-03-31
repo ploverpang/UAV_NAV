@@ -1,5 +1,5 @@
-#include "VFH.hpp"
-#include "DepthGeneration.hpp"
+#include "uav_nav/VFH.h"
+#include "uav_nav/depth_generation.h"
 
 // Inputs
 const int s = 36;       // Number of angular sectors

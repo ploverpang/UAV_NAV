@@ -1,5 +1,5 @@
-#ifndef DEPTHGENERATION_HPP
-#define DEPTHGENERATION_HPP
+#ifndef UAVNAV_DEPTHGENERATION_H_
+#define UAVNAV_DEPTHGENERATION_H_
 
 #include <ros/ros.h>
 #include <queue>
@@ -30,5 +30,4 @@ cv::Mat roundMorph(cv::Mat src_img, int byNumber, int xy);
 cv::Mat dispToMeter(cv::Mat src_img);
 cv::Mat fovReduction(cv::Mat src_img);
 
-
-#endif //DEPTHGENERATION_HPP
+#endif // UAVNAV_DEPTHGENERATION_H_

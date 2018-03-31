@@ -1,3 +1,6 @@
+#ifndef UAVNAV_VFH_H_
+#define UAVNAV_VFH_H_
+
 #include <ros/ros.h>
 #include <geometry_msgs/TwistStamped.h>
 #include <geometry_msgs/PointStamped.h>
@@ -35,3 +38,5 @@ bool blocked(float xt, float yt, float yc, float xc, float r);
 bool checkright(float y, float b, float r);
 bool checkleft(float y, float b, float l);
 bool inrange(int x, float th_l, float th_r, float yaw);
+
+#endif // UAVNAV_VFH_H_

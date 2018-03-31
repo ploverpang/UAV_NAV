@@ -1,5 +1,5 @@
-#ifndef SENSORFEEDBACK_HPP
-#define SENSORFEEDBACK_HPP
+#ifndef UAVNAV_SENSORFEEDBACK_H_
+#define UAVNAV_SENSORFEEDBACK_H_
 
 #include <ros/ros.h>
 #include <tf/tf.h>
@@ -53,4 +53,4 @@ int sensor_callback(int data_type, int data_len, char *content);
 void attitude_callback(const geometry_msgs::QuaternionStamped::ConstPtr& msg);
 void rpy_callback(const geometry_msgs::Vector3Stamped::ConstPtr& msg);
 
-#endif //SENSORFEEDBACK_HPP
+#endif // UAVNAV_SENSORFEEDBACK_H_

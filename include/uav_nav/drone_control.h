@@ -1,5 +1,5 @@
-#ifndef DRONE_CONTROL_HPP
-#define DRONE_CONTROL_HPP
+#ifndef UAVNAV_DRONECONTROL_H_
+#define UAVNAV_DRONECONTROL_H_
 
 // ROS
 #include <ros/ros.h>
@@ -41,4 +41,4 @@ void vel_cmd_callback(const geometry_msgs::TwistStamped::ConstPtr& msg);
 void send_vel_command(geometry_msgs::TwistStamped cmd);
 void quat_to_eul();
 
-#endif //DRONE_CONTROL_HPP
+#endif // UAVNAV_DRONECONTROL_H_

@@ -2,7 +2,7 @@
 *Supporting algorithms for main depthProcessing node
 *
 */
-#include <DepthGeneration.hpp>
+#include "uav_nav/depth_generation.h"
 
 using namespace cv;
 
@@ -90,9 +90,9 @@ cv::Mat maskOutliers(cv::Mat src_img, cv::Mat prevFrame, int nFrames, int diffTh
     cv::threshold(maskSum, maskSum, 1, 255, 1);
     maskSum.convertTo(maskSum, CV_8UC1);
     //imshow("Thresholded mask", maskSum);
-    waitKey(1); 
+    waitKey(1);
 
-    src_img.copyTo(dst_img,maskSum);        
+    src_img.copyTo(dst_img,maskSum);
 
     return dst_img;
 }
@@ -102,8 +102,8 @@ cv::Mat roundMorph(Mat src_img, int byNumber, int xy){
     src_img /= byNumber;
     src_img *= byNumber;
 
-    // Morphology 
-    cv::Mat element = getStructuringElement(MORPH_RECT, Size(xy, xy));  
+    // Morphology
+    cv::Mat element = getStructuringElement(MORPH_RECT, Size(xy, xy));
     morphologyEx(src_img, src_img, MORPH_OPEN, element);
     morphologyEx(src_img, src_img, MORPH_CLOSE, element);
     //imshow("after morphology", src_img);
@@ -115,7 +115,7 @@ cv::Mat dispToMeter(Mat src_img){
     distMap.convertTo(distMap, CV_16UC1);
     distMap *= 16.0*3.6; // fractional bits of StereoSGBM disparity maps
     distMap = (247.35*150)/distMap; // disparity map values to 'm'
-    distMap.convertTo(distMap, CV_8UC1); 
+    distMap.convertTo(distMap, CV_8UC1);
     return distMap;
 }
 
@@ -123,7 +123,7 @@ cv::Mat fovReduction(cv::Mat src_img){
     static double newAngle = atan2(clearance, cameraRange);
     const double FOV_y = 45*M_PI/180;
     static int cutoffPixel = (src_img.rows-(round(double(src_img.rows)*(FOV_y-newAngle*2)/FOV_y)))/2;
-    
+
     static cv::Rect crop(0, cutoffPixel, src_img.cols, src_img.rows-2*cutoffPixel);
     cv::Mat cropped = src_img(crop);
 

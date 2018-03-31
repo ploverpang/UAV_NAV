@@ -1,6 +1,6 @@
-#include "DJI_guidance.h"
-#include "DJI_utility.h"
-#include "SensorFeedback.hpp"
+#include "uav_nav/DJI_guidance.h"
+#include "uav_nav/DJI_utility.h"
+#include "uav_nav/sensor_feedback.h"
 
 ros::Publisher left_image_pub;
 ros::Publisher right_image_pub;

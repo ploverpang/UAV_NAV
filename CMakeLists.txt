@@ -28,10 +28,10 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-add_executable(sensorFeedback
-  src/SensorFeedback.cpp
-  src/DJI_utility.cpp)
-target_link_libraries(sensorFeedback
+add_executable(sensor_feedback
+  src/sensor_feedback.cc
+  src/DJI_utility.cc)
+target_link_libraries(sensor_feedback
   ${catkin_LIBRARIES}
   ${OpenCV_LIBS}
   ${DJIOSDK_LIBRARIES}
@@ -39,13 +39,13 @@ target_link_libraries(sensorFeedback
   usb-1.0
   yaml-cpp
 )
-add_dependencies(sensorFeedback dji_sdk_generate_messages_cpp)
+add_dependencies(sensor_feedback dji_sdk_generate_messages_cpp)
 
-add_executable(depthGeneration
-  src/DepthGeneration.cpp
-  src/SupportingALG.cpp
+add_executable(depth_generation
+  src/depth_generation.cc
+  src/supporting_alg.cc
 )
-target_link_libraries(depthGeneration
+target_link_libraries(depth_generation
   ${OpenCV_LIBS}
   ${catkin_LIBRARIES}
   DJI_guidance
@@ -53,17 +53,17 @@ target_link_libraries(depthGeneration
   yaml-cpp
 )
 
-add_executable(droneControl
-  src/DroneControl.cpp
+add_executable(drone_control
+  src/drone_control.cc
 )
-target_link_libraries(droneControl
+target_link_libraries(drone_control
   ${catkin_LIBRARIES}
   ${DJIOSDK_LIBRARIES}
 )
-add_dependencies(droneControl dji_sdk_generate_messages_cpp)
+add_dependencies(drone_control dji_sdk_generate_messages_cpp)
 
 add_executable(vfh
-  src/VFH.cpp
+  src/VFH.cc
 )
 target_link_libraries(vfh
   ${catkin_LIBRARIES}

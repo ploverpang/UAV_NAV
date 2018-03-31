@@ -1,4 +1,4 @@
-#include <DepthGeneration.hpp>
+#include "uav_nav/depth_generation.h"
 
 ros::Subscriber left_image_sub;
 ros::Subscriber right_image_sub;

@@ -1,4 +1,4 @@
-#include "DroneControl.hpp"
+#include "uav_nav/drone_control.h"
 
 // Global variables
 ros::ServiceClient               query_version_service;
