@@ -81,9 +81,11 @@ int main(int argc, char** argv) {
     private_nh_.param("cost_params", cost_params, std::vector<double>(cost_default, cost_default+3));
     private_nh_.param("target", target_xy, std::vector<double>(target_default, target_default+2));
 
-    ROS_INFO("s:%i\tth:%f\ttl:%f\tr:%f",angular_sector_count,bin_hist_high,bin_hist_low,radius_enlargement);
-    ROS_INFO("c1:%f\tc2:%f\tc3:%f",cost_params[0],cost_params[1],cost_params[2]);
-    ROS_INFO("c1:%f\tc2:%f",target_xy[0],target_xy[1]);
+    /*
+     * ROS_INFO("s:%i\tth:%f\ttl:%f\tr:%f",angular_sector_count,bin_hist_high,bin_hist_low,radius_enlargement);
+     * ROS_INFO("c1:%f\tc2:%f\tc3:%f",cost_params[0],cost_params[1],cost_params[2]);
+     * ROS_INFO("c1:%f\tc2:%f",target_xy[0],target_xy[1]);
+     */
 
     ros::spinOnce();
     //r.sleep();

@@ -10,9 +10,12 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   sensor_msgs
   dji_sdk
+  roslaunch
 )
 find_package(DJIOSDK REQUIRED)
 find_package(OpenCV REQUIRED)
+
+roslaunch_add_file_check(launch)
 
 set(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
 
