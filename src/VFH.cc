@@ -34,6 +34,17 @@ int main(int argc, char** argv) {
   // Initialize ROS
   ros::init(argc, argv, "vfh");
   ros::NodeHandle nh;
+  ros::NodeHandle private_nh_("~");
+
+  static const double cost_default[] = {16,2,77};
+  static const double target_default[] = {0,0};
+
+  int angular_sector_count;
+  double bin_hist_high;
+  double bin_hist_low;
+  double radius_enlargement;
+  std::vector<double> cost_params;
+  std::vector<double> target_xy;
 
   // Setup the histogram hist_grid
   static int histDimension = round(float(cameraRange)*2/resolution_m);
@@ -62,6 +73,17 @@ int main(int argc, char** argv) {
     get_candidates();
     calc_cost();
     publish_cmd();
+
+    private_nh_.param("s", angular_sector_count, 36);
+    private_nh_.param("t_high", bin_hist_high, 1.0);
+    private_nh_.param("t_low", bin_hist_low, 1.0);
+    private_nh_.param("r_enl", radius_enlargement, 1.0);
+    private_nh_.param("cost_params", cost_params, std::vector<double>(cost_default, cost_default+3));
+    private_nh_.param("target", target_xy, std::vector<double>(target_default, target_default+2));
+
+    ROS_INFO("s:%i\tth:%f\ttl:%f\tr:%f",angular_sector_count,bin_hist_high,bin_hist_low,radius_enlargement);
+    ROS_INFO("c1:%f\tc2:%f\tc3:%f",cost_params[0],cost_params[1],cost_params[2]);
+    ROS_INFO("c1:%f\tc2:%f",target_xy[0],target_xy[1]);
 
     ros::spinOnce();
     //r.sleep();
