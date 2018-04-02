@@ -25,17 +25,17 @@ cv::Point2f  cen(WIDTH/2, HEIGHT/2);
 
 int main(int argc, char** argv) {
   // Initialize ROS
-  ros::init(argc, argv, "SensorFeedback");
+  ros::init(argc, argv, "sensor_feedback");
   ros::NodeHandle nh;
 
   //Subsriber
-  ros::Subscriber rpy_sub  = nh.subscribe("rob666/roll_pitch_yaw",  1, &rpy_callback);
+  ros::Subscriber rpy_sub  = nh.subscribe("uav_nav/roll_pitch_yaw",  1, &rpy_callback);
 
   //Publishers
-  left_image_pub			  = nh.advertise<sensor_msgs::Image>    ("/rob666/guidance/left_image",        1);
-  right_image_pub			  = nh.advertise<sensor_msgs::Image>    ("/rob666/guidance/right_image",       1);
-  obstacle_distance_pub	= nh.advertise<sensor_msgs::LaserScan>("/rob666/guidance/obstacle_distance", 1);
-  ultrasonic_pub			  = nh.advertise<sensor_msgs::LaserScan>("/rob666/guidance/ultrasonic",        1);
+  left_image_pub			  = nh.advertise<sensor_msgs::Image>    ("uav_nav/guidance/left_image",        1);
+  right_image_pub			  = nh.advertise<sensor_msgs::Image>    ("uav_nav/guidance/right_image",       1);
+  obstacle_distance_pub	= nh.advertise<sensor_msgs::LaserScan>("uav_nav/guidance/obstacle_distance", 1);
+  ultrasonic_pub			  = nh.advertise<sensor_msgs::LaserScan>("uav_nav/guidance/ultrasonic",        1);
 
   // Initialize Guidance
   reset_config();

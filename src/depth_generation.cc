@@ -181,13 +181,13 @@ void DepthProcessing(cv::Mat src_img){
 }
 
 int main(int argc, char** argv) {
-	ros::init(argc, argv, "DepthGeneration");
+	ros::init(argc, argv, "depth_generation");
 	ros::NodeHandle nh;
 
-	left_image_sub  = nh.subscribe("/rob666/guidance/left_image",  1, left_image_callback);
-	right_image_sub = nh.subscribe("/rob666/guidance/right_image", 1, right_image_callback);
+	left_image_sub  = nh.subscribe("uav_nav/guidance/left_image",  1, left_image_callback);
+	right_image_sub = nh.subscribe("uav_nav/guidance/right_image", 1, right_image_callback);
 
-	laser_scan_pub = nh.advertise<sensor_msgs::LaserScan>("/rob666/guidance/laser_scan_from_depthIMG", 1);
+	laser_scan_pub = nh.advertise<sensor_msgs::LaserScan>("uav_nav/laser_scan_from_depthIMG", 1);
 
 	while(ros::ok()) {
     if(imgFlag >= 2 && imgFlag%2==0 && left_id.compare(right_id) == 0) {  // Initial IMG rendering delays the main loop

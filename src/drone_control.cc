@@ -15,7 +15,7 @@ uint8_t                          current_gps_health          = 0;
 int 						                 ctrl_state 	        			 = 0;
 
 int main(int argc, char** argv) {
-  ros::init(argc, argv, "DroneControl");
+  ros::init(argc, argv, "drone_control");
   ros::NodeHandle nh;
 
   // Services
@@ -29,11 +29,11 @@ int main(int argc, char** argv) {
   ros::Subscriber gps_pos_sub       = nh.subscribe("dji_sdk/gps_position",    1, &gps_position_callback);
   ros::Subscriber gps_health_sub    = nh.subscribe("dji_sdk/gps_health",      1, &gps_health_callback);
   ros::Subscriber attitude 		      = nh.subscribe("dji_sdk/attitude",        1, &attitude_callback);
-  ros::Subscriber control_cmd_sub   = nh.subscribe("/rob666/vel_cmd",  	      1, &vel_cmd_callback);
+  ros::Subscriber control_cmd_sub   = nh.subscribe("uav_nav/vel_cmd",  	      1, &vel_cmd_callback);
 
   // Publish the control signal
-  ctrl_vel_cmd_pub = nh.advertise<sensor_msgs::Joy>              ("dji_sdk/flight_control_setpoint_ENUvelocity_yawrate", 1);
-  rpy_pub          = nh.advertise<geometry_msgs::Vector3Stamped> ("rob666/roll_pitch_yaw",                               1);
+  ctrl_vel_cmd_pub = nh.advertise<sensor_msgs::Joy>("dji_sdk/flight_control_setpoint_ENUvelocity_yawrate", 1);
+  rpy_pub          = nh.advertise<geometry_msgs::Vector3Stamped>("uav_nav/roll_pitch_yaw",                 1);
 
   bool ready = false;
   if(is_M100() && set_local_position()) {

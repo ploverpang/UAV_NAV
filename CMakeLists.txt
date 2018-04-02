@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(uav_nav)
+set(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
 
 find_package(catkin REQUIRED COMPONENTS
   cv_bridge
@@ -11,16 +12,23 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   dji_sdk
   roslaunch
+  message_generation
 )
 find_package(DJIOSDK REQUIRED)
 find_package(OpenCV REQUIRED)
 
 roslaunch_add_file_check(launch)
 
-set(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
-
-catkin_package(
+add_service_files(
+  FILES
+  VFHLookUpTables.srv
 )
+
+generate_messages(
+  DEPENDENCIES
+)
+
+catkin_package()
 
 link_directories(lib/x64)
 
@@ -42,7 +50,6 @@ target_link_libraries(sensor_feedback
   usb-1.0
   yaml-cpp
 )
-add_dependencies(sensor_feedback dji_sdk_generate_messages_cpp)
 
 add_executable(depth_generation
   src/depth_generation.cc
@@ -56,22 +63,19 @@ target_link_libraries(depth_generation
   yaml-cpp
 )
 
-add_executable(drone_control
-  src/drone_control.cc
-)
+add_executable(drone_control src/drone_control.cc)
 target_link_libraries(drone_control
   ${catkin_LIBRARIES}
-  ${DJIOSDK_LIBRARIES}
-)
-add_dependencies(drone_control dji_sdk_generate_messages_cpp)
+  ${DJIOSDK_LIBRARIES})
 
-add_executable(vfh
-  src/VFH.cc
-)
+add_executable(vfh src/vfh.cc)
 target_link_libraries(vfh
   ${catkin_LIBRARIES}
-  ${OpenCV_LIBS}
-)
+  ${OpenCV_LIBS})
+
+add_executable(vfh_server src/vfh_services.cc)
+target_link_libraries(vfh_server ${catkin_LIBRARIES})
+add_dependencies(vfh_server uav_nav_gencpp)
 
 #install(DIRECTORY launch
 #  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch

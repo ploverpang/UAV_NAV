@@ -1,0 +1,6 @@
+uint32 size
+float32 radius
+---
+float32[] beta
+float32[] dist
+float32[] gamma

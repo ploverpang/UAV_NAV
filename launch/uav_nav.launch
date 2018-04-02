@@ -1,4 +1,6 @@
 <launch>
-  <rosparam command="load" file="$(find uav_nav)/config/vfh/vfh_params.yaml" />
-  <node name="vfh" pkg="uav_nav" type="vfh" output="screen"/>
+  <node name="vfh_service_server" pkg="uav_nav" type="vfh_server" output="screen"/>
+  <node name="vfh_node" pkg="uav_nav" type="vfh" output="screen">
+    <rosparam command="load" file="$(find uav_nav)/config/vfh/vfh_params.yaml"/>
+  </node>
 </launch>
