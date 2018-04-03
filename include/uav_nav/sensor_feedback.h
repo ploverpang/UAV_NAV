@@ -3,16 +3,19 @@
 
 #include <ros/ros.h>
 #include <tf/tf.h>
-#include <cv_bridge/cv_bridge.h>
-#include "dji_sdk/dji_sdk.h"
 #include <geometry_msgs/Vector3Stamped.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/LaserScan.h> //obstacle distance & ultrasonic
+
+#include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
 
-#define WIDTH 320
-#define HEIGHT 240
-#define IMAGE_SIZE (HEIGHT * WIDTH)
+#include "dji_sdk/dji_sdk.h"
+#include "uav_nav/DJI_guidance.h"
+#include "uav_nav/DJI_utility.h"
+
+#include "uav_nav/uav_nav.h"
+
 #define PIXEL_PER_ANGLE 4.2857
 
 #define RETURN_IF_ERR(err_code) { \
@@ -49,8 +52,7 @@ std::ostream& operator<<(std::ostream& out, const e_sdk_err_code value) {
   return out << s;
 }
 
-int sensor_callback(int data_type, int data_len, char *content);
-void attitude_callback(const geometry_msgs::QuaternionStamped::ConstPtr& msg);
-void rpy_callback(const geometry_msgs::Vector3Stamped::ConstPtr& msg);
+int sensorCb(int data_type, int data_len, char *content);
+void RPYCb(const geometry_msgs::Vector3Stamped::ConstPtr& msg);
 
 #endif // UAVNAV_SENSORFEEDBACK_H_

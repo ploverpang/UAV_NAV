@@ -53,27 +53,27 @@ int main(int argc, char** argv)
   vfh_luts = nh.serviceClient<uav_nav::VFHLookUpTables>("uav_nav/vfh_luts");
 
   //Subsriber
-  ros::Subscriber loc_pos_sub    = nh.subscribe("dji_sdk/local_position",           1, &LocalPositionCb);
-  ros::Subscriber vel_sub        = nh.subscribe("dji_sdk/velocity",                 1, &VelocityCb);
-  ros::Subscriber rpy_sub        = nh.subscribe("uav_nav/roll_pitch_yaw",           1, &RollPitchYawCb);
-  ros::Subscriber laser_scan_sub = nh.subscribe("uav_nav/laser_scan_from_depthIMG", 1, &LaserScanCb);
+  ros::Subscriber loc_pos_sub    = nh.subscribe("dji_sdk/local_position",           1, &localPositionCb);
+  ros::Subscriber vel_sub        = nh.subscribe("dji_sdk/velocity",                 1, &velocityCb);
+  ros::Subscriber rpy_sub        = nh.subscribe("uav_nav/roll_pitch_yaw",           1, &RPYCb);
+  ros::Subscriber laser_scan_sub = nh.subscribe("uav_nav/laser_scan_from_depthIMG", 1, &laserScanCb);
 
   //Publishers
   vel_cmd_pub = nh.advertise<geometry_msgs::TwistStamped>("uav_nav/vel_cmd", 1);
 
   // Necessary functions before entering ros spin
-  GetLUTs(histDimension, radius_enlargement, beta, dist_scaled, enlarge);
+  getLUTs(histDimension, radius_enlargement, beta, dist_scaled, enlarge);
   //ros::Rate r(1); //1Hz
 
   while(ros::ok())
   {
-    GetTargetDir(alpha, target_xy, k_target);
-    BinaryHist(s, alpha, bin_hist_high, bin_hist_low, beta, dist_scaled, enlarge, h);
-    MaskedPolarHist(alpha, radius_enlargement, beta, h, masked_hist);
-    FindValleyBorders(masked_hist, k_l, k_r);
-    FindCandidateDirections(s, k_target, k_l, k_r, c);
-    CalculateCost(s, alpha, k_target, c, cost_params, masked_hist, k_d);
-    PublishCtrlCmd(k_d, alpha);
+    getTargetDir(alpha, target_xy, k_target);
+    binaryHist(s, alpha, bin_hist_high, bin_hist_low, beta, dist_scaled, enlarge, h);
+    maskedPolarHist(alpha, radius_enlargement, beta, h, masked_hist);
+    findValleyBorders(masked_hist, k_l, k_r);
+    findCandidateDirections(s, k_target, k_l, k_r, c);
+    calculateCost(s, alpha, k_target, c, cost_params, masked_hist, k_d);
+    publishCtrlCmd(k_d, alpha);
 
     ros::spinOnce();
     //r.sleep();
@@ -83,39 +83,39 @@ int main(int argc, char** argv)
 }
 
 // Callbacks
-void LocalPositionCb(const geometry_msgs::PointStamped::ConstPtr& msg)
+void localPositionCb(const geometry_msgs::PointStamped::ConstPtr& msg)
 {
   local_position = *msg;
-  ShiftHistogramGrid(local_position);
+  shiftHistogramGrid(local_position);
 }
 
-void VelocityCb(const geometry_msgs::Vector3Stamped::ConstPtr& msg)
+void velocityCb(const geometry_msgs::Vector3Stamped::ConstPtr& msg)
 {
   velocity = *msg;
 }
 
-void RollPitchYawCb(const geometry_msgs::Vector3Stamped::ConstPtr& msg)
+void RPYCb(const geometry_msgs::Vector3Stamped::ConstPtr& msg)
 {
   rpy = *msg;
 }
 
-void LaserScanCb(const sensor_msgs::LaserScan::ConstPtr& msg)
+void laserScanCb(const sensor_msgs::LaserScan::ConstPtr& msg)
 {
-  FillHistogramGrid(*msg);
+  fillHistogramGrid(*msg);
 }
 
 // Functions
-void GetTargetDir(unsigned           alpha,
+void getTargetDir(unsigned           alpha,
                   std::vector<float> target,
                   float             &k_target
                  )
 {
   float target_angle = std::atan2(target[1]-local_position.point.y, target[0]-local_position.point.x);
-  float angle_diff = WrapToPi(target_angle-rpy.vector.z);
+  float angle_diff = wrapToPi(target_angle-rpy.vector.z);
   k_target = RAD2DEG(angle_diff)/alpha;
 }
 
-void GetLUTs(int                size,
+void getLUTs(int                size,
              float              radius,
              std::vector<float> &beta,
              std::vector<float> &dist_scaled,
@@ -134,18 +134,17 @@ void GetLUTs(int                size,
   enlarge     = lut.response.gamma;
 }
 
-void FillHistogramGrid(sensor_msgs::LaserScan msg_laser)
+void fillHistogramGrid(sensor_msgs::LaserScan msg_laser)
 {
   // Based on srcID, scalar times 90° is added to the yaw. CCW, Front = 0°
   std::string cameraID = msg_laser.header.frame_id;
   static int scalar; // this times 90° to rotate
   if(cameraID == "front"){scalar = 0;}
-  else if(cameraID == "left"){scalar = 1;}
+  /*else if(cameraID == "left"){scalar = 1;}
   else if(cameraID == "rear"){scalar = 2;}
-  else if(cameraID == "right"){scalar = 3;}
+  else if(cameraID == "right"){scalar = 3;}*/
   else {return;} // don't need down facing camera
-  //float yaw = rpy.vector.z;
-  float yaw = 0;
+  float yaw = rpy.vector.z;
   yaw += scalar*M_PI/2;
 
   // Increment cell values at laserPoint with GRO mask and decrement cells along a line between center and laserPoint
@@ -159,10 +158,10 @@ void FillHistogramGrid(sensor_msgs::LaserScan msg_laser)
 
   for(int i=0; i < msg_laser.ranges.size(); i++)
   {
-    if(msg_laser.ranges[i] != 0)
+    if(msg_laser.ranges[i] > 0.5)
     {
-      laserPoint.x = histCenter + round(cos(yaw + msg_laser.angle_max - i * msg_laser.angle_increment) * msg_laser.ranges[i]);
-      laserPoint.y = histCenter + round(sin(yaw + msg_laser.angle_max - i * msg_laser.angle_increment) * msg_laser.ranges[i]);
+      laserPoint.x = histCenter - round(sin(yaw + msg_laser.angle_max - i * msg_laser.angle_increment) * msg_laser.ranges[i]);
+      laserPoint.y = histCenter - round(cos(yaw + msg_laser.angle_max - i * msg_laser.angle_increment) * msg_laser.ranges[i]);
 
       // Increment
       if(hist_grid.at<unsigned char>(laserPoint) > 255 - increment)
@@ -182,7 +181,7 @@ void FillHistogramGrid(sensor_msgs::LaserScan msg_laser)
 
       // Decrement along a line
       cv::Mat linemask = cv::Mat::zeros(hist_grid.size(), CV_8UC1);
-      line(linemask, cv::Point(histCenter, histCenter), laserPoint, cv::Scalar(255), 1, 8); // would 4 connectivity be better? TEST
+      line(linemask, cv::Point(histCenter, histCenter), laserPoint, cv::Scalar(255), 1, 4);
       linemask.at<unsigned char>(laserPoint) = 0;
       cv::Mat histGridDec;
       hist_grid.copyTo(histGridDec);
@@ -190,33 +189,45 @@ void FillHistogramGrid(sensor_msgs::LaserScan msg_laser)
       histGridDec.copyTo(hist_grid, linemask);
     }
   }
-  cv::Mat show;
+  /*cv::Mat show;
   resize(hist_grid, show, cv::Size(), 10, 10, cv::INTER_NEAREST);
-  imshow("asd", show);
-  cv::waitKey(1);
+  //imshow("asd", show);
+  cv::waitKey(1);*/
 }
 
-void ShiftHistogramGrid(geometry_msgs::PointStamped msg_pos)
+void shiftHistogramGrid(geometry_msgs::PointStamped msg_pos)
 {
   static float currentPos_x = msg_pos.point.x;
   static float currentPos_y = msg_pos.point.y;
   static float hystereses = 1.2;
+  static cv::Mat circle_mask(hist_grid.size(), CV_8UC1, cv::Scalar(0));
+  circle(circle_mask, cv::Point((hist_grid.rows-1)/2, (hist_grid.cols-1)/2), CAMERARANGE*2, cv::Scalar(255), -1, 8, 0);
 
   // Shift grid left, right, up, down TEST DIRECTIONS
-  if(std::fabs(currentPos_x - msg_pos.point.x) > (hystereses*RESOLUTION_M/2))
+  float diff = msg_pos.point.x - currentPos_x;
+  if(std::fabs(diff) > (hystereses*RESOLUTION_M/2))
   {
-    int offsetX = floor((currentPos_x - msg_pos.point.x) / RESOLUTION_M);
-    cv::Mat trans_mat = (cv::Mat_<float>(2,3) << 1, 0, offsetX, 0, 1, 0);
+    ROS_INFO("x_delta: %f",diff);
+    int offsetX = trunc(diff / RESOLUTION_M);
+    cv::Mat trans_mat = (cv::Mat_<float>(2,3) << 1, 0, 0, 0, 1, offsetX);
     warpAffine(hist_grid,hist_grid,trans_mat,hist_grid.size());
-    currentPos_x += offsetX; // CHECK sign
+    currentPos_x = currentPos_x + std::copysign((RESOLUTION_M*offsetX), diff);
+    cv::Mat masked = cv::Mat::zeros(hist_grid.size(), CV_8UC1);
+    hist_grid.copyTo(masked, circle_mask);
+    hist_grid = masked;
   }
 
-  if(std::fabs(currentPos_y - msg_pos.point.y) > (hystereses*RESOLUTION_M/2))
+  diff = msg_pos.point.y - currentPos_y;
+  if(std::fabs(diff) > (hystereses*RESOLUTION_M/2))
   {
-    int offsetY = floor((currentPos_y - msg_pos.point.y) / RESOLUTION_M);
-    cv::Mat trans_mat = (cv::Mat_<float>(2,3) << 1, 0, 0, 0, 1, offsetY);
+    ROS_INFO("y_delta: %f",diff);
+    int offsetY = -trunc(diff / RESOLUTION_M);
+    cv::Mat trans_mat = (cv::Mat_<float>(2,3) << 1, 0, offsetY, 0, 1, 0);
     warpAffine(hist_grid,hist_grid,trans_mat,hist_grid.size());
-    currentPos_y += offsetY; // CHECK sign
+    currentPos_y = currentPos_y + std::copysign((RESOLUTION_M*offsetY), diff);
+    cv::Mat masked = cv::Mat::zeros(hist_grid.size(), CV_8UC1);
+    hist_grid.copyTo(masked, circle_mask);
+    hist_grid = masked;
   }
 
   cv::Mat show;
@@ -225,7 +236,7 @@ void ShiftHistogramGrid(geometry_msgs::PointStamped msg_pos)
   cv::waitKey(1);
 }
 
-void BinaryHist(unsigned              s,
+void binaryHist(unsigned              s,
                 unsigned              alpha,
                 float                 t_high,
                 float                 t_low,
@@ -272,7 +283,7 @@ void BinaryHist(unsigned              s,
   prev_h = h;
 }
 
-void MaskedPolarHist(unsigned              alpha,
+void maskedPolarHist(unsigned              alpha,
                      float                 r_enl,
                      std::vector<float>    beta,
                      std::vector<unsigned> h,
@@ -283,7 +294,7 @@ void MaskedPolarHist(unsigned              alpha,
   float t_obst = 1;
   float max_rot_vel = 1;
   float r = velocity.vector.x/max_rot_vel; // Calculating the minimum steering radius, assumed that it´s the same for both directions
-  float back = WrapTo2Pi(yaw-C_PI);
+  float back = wrapTo2Pi(yaw-C_PI);
   back = RAD2DEG(back);
   yaw = RAD2DEG(yaw);
 
@@ -304,11 +315,11 @@ void MaskedPolarHist(unsigned              alpha,
       if(hist_grid.at<unsigned char>(j, i) > t_obst)
       {
         // If the grid value is greter than cThreshold, enter loop
-        if(CheckRight(yaw, beta[index], th_r) && Blocked(dxr, dyr, i, j, r+r_enl))
+        if(checkRight(yaw, beta[index], th_r) && blocked(dxr, dyr, i, j, r+r_enl))
         {
           th_r = beta[index];
-        }  // if angle is right to yaw and left to th_r: check Blocked()
-        else if(CheckLeft(yaw, beta[index], th_l) && Blocked(dxl, dyl, i, j, r+r_enl))
+        }  // if angle is right to yaw and left to th_r: check blocked()
+        else if(checkLeft(yaw, beta[index], th_l) && blocked(dxl, dyl, i, j, r+r_enl))
         {
           th_l = beta[index];
         }
@@ -320,7 +331,7 @@ void MaskedPolarHist(unsigned              alpha,
   masked_hist.clear();
   for(int x=0; x < h.size(); x++)
   {
-    if(h[x] == 0 && InRange(alpha, x, th_l, th_r, yaw))
+    if(h[x] == 0 && inRange(alpha, x, th_l, th_r, yaw))
     {
       masked_hist.push_back(0);
     }
@@ -331,7 +342,7 @@ void MaskedPolarHist(unsigned              alpha,
   }
 }
 
-void FindValleyBorders(std::vector<unsigned> masked_hist,
+void findValleyBorders(std::vector<unsigned> masked_hist,
                        std::vector<int>      &k_l,
                        std::vector<int>      &k_r
                       )
@@ -370,7 +381,7 @@ void FindValleyBorders(std::vector<unsigned> masked_hist,
   }
 }
 
-void FindCandidateDirections(unsigned           s,
+void findCandidateDirections(unsigned           s,
                              float              k_target,
                              std::vector<int>   k_l,
                              std::vector<int>   k_r,
@@ -441,7 +452,7 @@ void FindCandidateDirections(unsigned           s,
   }
 }
 
-void CalculateCost(unsigned              s,
+void calculateCost(unsigned              s,
                    unsigned              alpha,
                    float                 k_target,
                    std::vector<float>    c,
@@ -457,9 +468,9 @@ void CalculateCost(unsigned              s,
     float g = 16384.0;
     for(auto &steering_dir : c)
     {
-      float tmp_g = mu[0] * DeltaC(steering_dir, k_target,                    s) +
-                    mu[1] * DeltaC(steering_dir, RAD2DEG(rpy.vector.z)/alpha, s) +
-                    mu[2] * DeltaC(steering_dir, prev_k_d,                    s);
+      float tmp_g = mu[0] * deltaC(steering_dir, k_target,                    s) +
+                    mu[1] * deltaC(steering_dir, RAD2DEG(rpy.vector.z)/alpha, s) +
+                    mu[2] * deltaC(steering_dir, prev_k_d,                    s);
       if(tmp_g < g)
       {
         k_d = steering_dir;
@@ -476,26 +487,27 @@ void CalculateCost(unsigned              s,
     else
     {
       k_d = 0.0;
-      // Handle this correctly. All directions are Blocked.
+      // Handle this correctly. All directions are blocked.
     }
   }
 
   prev_k_d = k_d;
 }
 
-void PublishCtrlCmd(float    k_d,
+void publishCtrlCmd(float    k_d,
                     unsigned alpha
                    )
 {
   geometry_msgs::TwistStamped vel_cmd;
   vel_cmd.header.stamp    = ros::Time::now();
   vel_cmd.header.frame_id = "vfh_vel_cmd";
-  vel_cmd.twist.linear.x  = 1; // This needs to be correctly controlled
-  vel_cmd.twist.angular.z = WrapToPi(DEG2RAD(k_d * alpha));
+  vel_cmd.twist.linear.x  = 0; // This needs to be correctly controlled
+  //vel_cmd.twist.angular.z = wrapToPi(DEG2RAD(k_d * alpha));
+  vel_cmd.twist.angular.z = 0;
   vel_cmd_pub.publish(vel_cmd);
 }
 
-float DeltaC(float    c1,
+float deltaC(float    c1,
              float    c2,
              unsigned s
             )
@@ -503,13 +515,13 @@ float DeltaC(float    c1,
   return std::min(std::min(std::fabs(c1-c2-s), std::fabs(c1-c2+s)), std::fabs(c1-c2));
 }
 
-float WrapToPi(float angle) {
+float wrapToPi(float angle) {
   angle = std::fmod(angle + C_PI, 2*C_PI);
   if(angle < 0) angle += 2 * C_PI;
   return (angle - C_PI);
 }
 
-float WrapTo2Pi(float angle)
+float wrapTo2Pi(float angle)
 {
   angle = std::fmod(angle, 2*C_PI);
   if(angle < 0)
@@ -517,7 +529,7 @@ float WrapTo2Pi(float angle)
   return angle;
 }
 
-bool Blocked(float xt, // x coordinate of trajectory center
+bool blocked(float xt, // x coordinate of trajectory center
              float yt, // y coordinate of trajectory center
              float yc, // y coordinate of active cell
              float xc, // x coordinate of active cell
@@ -527,7 +539,7 @@ bool Blocked(float xt, // x coordinate of trajectory center
   return (pow(xt-xc,2)+pow(yt-yc,2) < pow(r,2)); // returns True if circles overlap
 }
 
-bool CheckRight(float y,
+bool checkRight(float y,
                 float b,
                 float r
                )
@@ -542,7 +554,7 @@ bool CheckRight(float y,
   return ((y > b) && (b > r));
 }
 
-bool CheckLeft(float y,
+bool checkLeft(float y,
                float b,
                float l
               )
@@ -557,7 +569,7 @@ bool CheckLeft(float y,
   return ((y < b) && (b < l));
 }
 
-bool InRange(unsigned alpha,
+bool inRange(unsigned alpha,
              int      x,
              float    th_l,
              float    th_r,
@@ -565,5 +577,5 @@ bool InRange(unsigned alpha,
             )
 {
   float di = alpha*x + alpha/2;
-  return (CheckLeft(yaw, di, th_l) || CheckRight(yaw, di, th_r));
+  return (checkLeft(yaw, di, th_l) || checkRight(yaw, di, th_r));
 }

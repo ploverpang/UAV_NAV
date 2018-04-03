@@ -4,4 +4,7 @@ vfh:
   t_low: 3.4
   r_enl: 1.4
   cost_params: [5,2,2]
-  target: [10, 10]
+  target: [0, 0]
+
+sensor_feedback:
+  show_debug_info: false

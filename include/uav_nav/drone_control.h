@@ -23,22 +23,21 @@
 #include <dji_sdk/DroneTaskControl.h>
 
 // Initialize drone (setup, obtain control, take off)
-bool is_M100();
-bool set_local_position();
-bool obtain_control(bool b);
-bool takeoff_land(int task);
-bool monitored_takeoff();
+bool isM100();
+bool setLocalPositionRef();
+bool obtainControl(bool b);
+bool takeoffLand(int task);
+bool monitoredTakeOff();
 
 // Callbacks
-void flight_status_callback(const std_msgs::UInt8::ConstPtr& msg);
-void gps_position_callback(const sensor_msgs::NavSatFix::ConstPtr& msg);
-void gps_health_callback(const std_msgs::UInt8::ConstPtr& msg);
-void attitude_callback(const geometry_msgs::QuaternionStamped::ConstPtr& msg);
-void local_position_callback(const geometry_msgs::PointStamped::ConstPtr& msg);
-void vel_cmd_callback(const geometry_msgs::TwistStamped::ConstPtr& msg);
+void flightStatusCb(const std_msgs::UInt8::ConstPtr& msg);
+void GPSPositionCb(const sensor_msgs::NavSatFix::ConstPtr& msg);
+void GPSHealthCb(const std_msgs::UInt8::ConstPtr& msg);
+void attitudeCb(const geometry_msgs::QuaternionStamped::ConstPtr& msg);
+void velCmdCb(const geometry_msgs::TwistStamped::ConstPtr& msg);
 
 // Publishers
-void send_vel_command(geometry_msgs::TwistStamped cmd);
-void quat_to_eul();
+void sendVelCmd(geometry_msgs::TwistStamped cmd);
+void quatToEuler();
 
 #endif // UAVNAV_DRONECONTROL_H_

@@ -13,13 +13,11 @@
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/LaserScan.h> //obstacle distance && ultrasonic
 
-#define WIDTH 320
-#define HEIGHT 240
-#define cameraFOVx 60
-#define cameraFOVy 56
-#define cameraRange 10
-#define clearance 2
-#define resolution_m 0.5
+#include "uav_nav/uav_nav.h"
+
+#define CAMERAFOV_X 60
+#define CAMERAFOV_Y 56
+#define CLEARANCE 2
 
 float findsmallestX(std::vector<int> arr, int numberOfArrayElements, int stopNumber);
 cv::Mat CreateDepthImage(cv::Mat L_img, cv::Mat R_img);

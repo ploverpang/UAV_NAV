@@ -1,7 +1,3 @@
-/*
-*Supporting algorithms for main depthProcessing node
-*
-*/
 #include "uav_nav/depth_generation.h"
 
 using namespace cv;
@@ -110,17 +106,16 @@ cv::Mat roundMorph(Mat src_img, int byNumber, int xy){
     return src_img;
 }
 
-cv::Mat dispToMeter(Mat src_img){
-    Mat distMap = src_img;
+cv::Mat dispToMeter(Mat distMap){
     distMap.convertTo(distMap, CV_16UC1);
     distMap *= 16.0*3.6; // fractional bits of StereoSGBM disparity maps
     distMap = (247.35*150)/distMap; // disparity map values to 'm'
-    distMap.convertTo(distMap, CV_8UC1);
+    //distMap.convertTo(distMap, CV_8UC1);
     return distMap;
 }
 
 cv::Mat fovReduction(cv::Mat src_img){
-    static double newAngle = atan2(clearance, cameraRange);
+    static double newAngle = atan2(CLEARANCE, CAMERARANGE);
     const double FOV_y = 45*M_PI/180;
     static int cutoffPixel = (src_img.rows-(round(double(src_img.rows)*(FOV_y-newAngle*2)/FOV_y)))/2;
 
