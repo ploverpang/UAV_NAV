@@ -113,14 +113,14 @@ int main(int argc, char** argv)
         case 1:
           camera_id = e_vbus3;
           frame_id = "rear";
-          angle = rpy.vector.x;
+          angle = -rpy.vector.x;
           t_y = rpy.vector.y*PIXEL_PER_ANGLE;
           camera_select = 2;
           break;
         case 2:
           camera_id = e_vbus4;
           frame_id = "left";
-          angle = rpy.vector.y;
+          angle = -rpy.vector.y;
           t_y = rpy.vector.x*PIXEL_PER_ANGLE;
           camera_select = 3;
           break;

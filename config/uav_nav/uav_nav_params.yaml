@@ -1,8 +1,8 @@
 vfh:
   s: 72
-  t_high: 5.6
-  t_low: 3.4
-  r_enl: 1.4
+  t_high: 0.1
+  t_low: 0.01
+  r_enl: 0.1
   cost_params: [5,2,2]
   target: [10, 10]
 

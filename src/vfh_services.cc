@@ -5,7 +5,7 @@
 bool generateLUTs(uav_nav::VFHLookUpTables::Request  &req,
                   uav_nav::VFHLookUpTables::Response &res)
 {
-  const float b = 1;                            // Scaler to linearize cell distance from RCP
+  const float b = 0.01;                         // Scaler to linearize cell distance from RCP
   const float a = 1 + b*pow((req.size-1)/2, 2); // Scaler to linearize cell distance from RCP
   int x0        = floor(req.size/2);            // Robot x coordinate in active window
   int y0        = floor(req.size/2);            // Robot y coordinate in active window
@@ -15,7 +15,7 @@ bool generateLUTs(uav_nav::VFHLookUpTables::Request  &req,
     for(int j = 0; j < req.size; j++) // columns
     {
       res.beta.push_back(atan2(j-y0,i-x0) + 3.14159);
-      res.dist.push_back(a - b * pow(sqrt(pow((x0-i),2) + pow((y0-j),2)),2));
+      res.dist.push_back(a - b * (pow((x0-i),2) + pow((y0-j),2)));
       res.gamma.push_back(asin(req.radius / sqrt(pow((x0-i),2) + pow((y0-j),2))));
     }
   }

@@ -43,6 +43,8 @@ int main(int argc, char** argv)
   std::vector<int>      k_r;                           // Left borders of candidate valleys
   std::vector<float>    c;                             // Candidate directions
   float                 k_d                 = 0.0;     // Selected direction of motion
+  float                 lin_vel             = 0.0;     //
+  unsigned              vel_flag            = 0;
   unsigned              alpha               = 360 / s; // Sector angle
   float                 k_target            = 0.0;     // Target direction
 
@@ -69,13 +71,16 @@ int main(int argc, char** argv)
 
   while(ros::ok())
   {
+    private_nh_.param("target",      target_xy,          std::vector<float>(target_default, target_default+2));
+
     getTargetDir(alpha, target_xy, k_target);
     binaryHist(s, alpha, bin_hist_high, bin_hist_low, beta, dist_scaled, enlarge, h);
     maskedPolarHist(alpha, radius_enlargement, beta, h, masked_hist);
     findValleyBorders(masked_hist, k_l, k_r);
     findCandidateDirections(s, k_target, k_l, k_r, c);
-    calculateCost(s, alpha, k_target, c, cost_params, masked_hist, k_d);
-    publishCtrlCmd(k_d, alpha);
+    calculateCost(s, alpha, k_target, c, cost_params, masked_hist, k_d, vel_flag);
+    ctrlVelCmd(target_xy, vel_flag, lin_vel);
+    publishCtrlCmd(k_d, lin_vel, alpha);
 
     ros::spinOnce();
     //r.sleep();
@@ -257,10 +262,10 @@ void binaryHist(unsigned              s,
     for(int j = 0; j < hist_grid.cols; j++)
     {
       unsigned index = j+i*hist_grid.cols;
-      float mag = hist_grid.at<unsigned char>(j, i) * dist_scaled[index];
+      float mag = pow(hist_grid.at<unsigned char>(i, j),2) * dist_scaled[index];
       for(int k = 0; k < s; k++)
       {
-        if(k*alpha>=(beta[index]-enlarge[index]) && k*alpha<=(beta[index]+enlarge[index]))
+        if(k*DEG2RAD(alpha)>=(beta[index]-enlarge[index]) && k*DEG2RAD(alpha)<=(beta[index]+enlarge[index]))
           polar[k] += mag;
       }
     }
@@ -335,15 +340,20 @@ void maskedPolarHist(unsigned              alpha,
   masked_hist.clear();
   for(int x=0; x < h.size(); x++)
   {
+    //ROS_INFO("h[%i]: %i", x, h[x]);
+    //ROS_INFO("alpha: %i, x: %i, th_l: %f, th_r: %f, yaw: %f", alpha, x, th_l, th_r, yaw);
     if(h[x] == 0 && inRange(alpha, x, th_l, th_r, yaw))
     {
+      //ROS_INFO("masked[%i]: %i", x, masked_hist[x]);
       masked_hist.push_back(0);
     }
     else
     {
+      ROS_INFO("masked[%i]: %i", x, masked_hist[x]);
       masked_hist.push_back(1);
     }
   }
+  ROS_INFO("\n");
 }
 
 void findValleyBorders(std::vector<unsigned> masked_hist,
@@ -462,7 +472,8 @@ void calculateCost(unsigned              s,
                    std::vector<float>    c,
                    std::vector<float>    mu,
                    std::vector<unsigned> masked_hist,
-                   float                 &k_d
+                   float                 &k_d,
+                   unsigned              &vel_flag
                   )
 {
   static float prev_k_d = 0.0; // Previous direction of motion
@@ -485,29 +496,65 @@ void calculateCost(unsigned              s,
   else
   {
     if(masked_hist[0] == 0)
-    {
       k_d = k_target;
-    }
     else
     {
-      k_d = 0.0;
-      // Handle this correctly. All directions are blocked.
+      switch (vel_flag)
+      {
+        case 0:
+          k_d = prev_k_d;
+          vel_flag = 1;
+          break;
+        case 1:
+          k_d = prev_k_d;
+          vel_flag = 2;
+          break;
+      }
     }
   }
 
   prev_k_d = k_d;
 }
 
+void ctrlVelCmd(std::vector<float> target_xy,
+                unsigned           &vel_flag,
+                float              &lin_vel
+               )
+{
+  static const float max_vel = 1.0;
+  static const float target_radius = 2.0;
+
+  float target_distance = sqrt(pow(target_xy[0]-local_position.point.x,2)+pow(target_xy[1]-local_position.point.y,2));
+  if(target_distance > target_radius)
+    lin_vel = max_vel;
+  else if (target_distance > 0.2)
+    lin_vel = (target_distance/target_radius) * max_vel;
+  else
+    lin_vel = 0;
+
+  switch (vel_flag)
+  {
+    case 1:
+      lin_vel *= 0.5;
+      break;
+    case 2:
+      lin_vel = 0;
+      vel_flag = 0;
+      break;
+  }
+}
+
 void publishCtrlCmd(float    k_d,
+                    float    lin_vel,
                     unsigned alpha
                    )
 {
   geometry_msgs::TwistStamped vel_cmd;
   vel_cmd.header.stamp    = ros::Time::now();
   vel_cmd.header.frame_id = "vfh_vel_cmd";
-  vel_cmd.twist.linear.x  = 0; // This needs to be correctly controlled
-  vel_cmd.twist.angular.z = -wrapToPi(DEG2RAD(k_d * alpha));
-  //vel_cmd.twist.angular.z = 0;
+  vel_cmd.twist.linear.x  = lin_vel;
+  //vel_cmd.twist.angular.z = -wrapToPi(DEG2RAD(k_d * alpha)-rpy.vector.z);
+  vel_cmd.twist.angular.z = 0;
   vel_cmd_pub.publish(vel_cmd);
 }
 

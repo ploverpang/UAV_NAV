@@ -29,8 +29,9 @@ void binaryHist(unsigned s, unsigned alpha, float t_high, float t_low, std::vect
 void maskedPolarHist(unsigned alpha, float r_enl, std::vector<float> beta, std::vector<unsigned> h, std::vector<unsigned> &masked_hist);
 void findValleyBorders(std::vector<unsigned> masked_hist, std::vector<int> &k_l, std::vector<int> &k_r);
 void findCandidateDirections(unsigned s, float k_target, std::vector<int> k_l, std::vector<int> k_r, std::vector<float> &c);
-void calculateCost(unsigned s, unsigned alpha, float k_target, std::vector<float> c, std::vector<float> mu, std::vector<unsigned> masked_hist, float &k_d);
-void publishCtrlCmd(float k_d, unsigned alpha);
+void calculateCost(unsigned s, unsigned alpha, float k_target, std::vector<float> c, std::vector<float> mu, std::vector<unsigned> masked_hist, float &k_d, unsigned &vel_flag);
+void ctrlVelCmd(std::vector<float>target_xy, unsigned &vel_flag, float &lin_vel);
+void publishCtrlCmd(float k_d, float lin_vel, unsigned alpha);
 float deltaC(float c1, float c2, unsigned s);
 float wrapToPi(float angle);
 float wrapTo2Pi(float angle);
