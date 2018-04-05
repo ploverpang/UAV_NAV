@@ -24,7 +24,8 @@ cv::Mat CreateDepthImage(cv::Mat L_img, cv::Mat R_img);
 void DepthProcessing(cv::Mat src_img);
 void show_histogram(std::string const& name, cv::Mat1b const& image);
 cv::Mat maskOutliers(cv::Mat src_img, cv::Mat prevFrame, int nFrames, int diffThreshold);
-cv::Mat roundMorph(cv::Mat src_img, int byNumber, int xy);
+cv::Mat legacyRoundMorph(cv::Mat src_img, int byNumber, int xy);
+cv::Mat roundMorph(cv::Mat src_img, int offset, int threshold);
 cv::Mat dispToMeter(cv::Mat src_img);
 cv::Mat fovReduction(cv::Mat src_img);
 
