@@ -22,6 +22,8 @@
 #include <dji_sdk/SDKControlAuthority.h>
 #include <dji_sdk/DroneTaskControl.h>
 
+#include "uav_nav/uav_nav.h"
+
 // Initialize drone (setup, obtain control, take off)
 bool isM100();
 bool setLocalPositionRef();

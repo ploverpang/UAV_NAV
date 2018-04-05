@@ -175,6 +175,12 @@ void sendVelCmd(geometry_msgs::TwistStamped cmd)
   ctrl_vel_cmd_pub.publish(controlVelYawRate);
 }
 
+float wrapToPi(float angle) {
+  angle = std::fmod(angle + C_PI, 2*C_PI);
+  if(angle < 0) angle += 2 * C_PI;
+  return (angle - C_PI);
+}
+
 void quatToEuler()
 {
   geometry_msgs::Vector3Stamped rpy;
@@ -186,6 +192,8 @@ void quatToEuler()
                                     attitude_state.quaternion.z,
                                     attitude_state.quaternion.w);
   tf::Matrix3x3(q).getRPY(rpy.vector.x, rpy.vector.y, rpy.vector.z);
+
+  rpy.vector.z = wrapToPi(-rpy.vector.z + C_PI);
 
   rpy_pub.publish(rpy);
 }

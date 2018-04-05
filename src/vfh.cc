@@ -15,7 +15,7 @@ int main(int argc, char** argv)
   ros::NodeHandle nh;
   ros::NodeHandle private_nh_("~");
 
-  // Local variables
+  // Parameter variables
   int                   s;                             // Number of angular sectors
   float                 bin_hist_high;                 // Binary histogram high threshold
   float                 bin_hist_low;                  // Binary histogram low threshold
@@ -24,6 +24,16 @@ int main(int argc, char** argv)
   std::vector<float>    target_xy;                     // Target for the drone
   static const float    cost_default[]      = {5,2,2}; // Default cost parameters
   static const float    target_default[]    = {0,0};   // Default target [x, y]
+
+  // Load parameters
+  private_nh_.param("s",           s,                  72);
+  private_nh_.param("t_high",      bin_hist_high,      1.f);
+  private_nh_.param("t_low",       bin_hist_low,       1.f);
+  private_nh_.param("r_enl",       radius_enlargement, 1.f);
+  private_nh_.param("cost_params", cost_params,        std::vector<float>(cost_default,   cost_default+3));
+  private_nh_.param("target",      target_xy,          std::vector<float>(target_default, target_default+2));
+
+  // Local variables
   std::vector<float>    beta;                          // Histogram grid cell angle from RCP
   std::vector<float>    dist_scaled;                   // Histogram grid cell distance from RCP
   std::vector<float>    enlarge;                       // Obstacle enlargement angle from RCP
@@ -40,14 +50,6 @@ int main(int argc, char** argv)
   static int histDimension = round((float)CAMERARANGE*2/RESOLUTION_M);
   if(histDimension%2 != 1) histDimension++;
   hist_grid = cv::Mat::zeros(histDimension, histDimension, CV_8UC1);
-
-  // Load parameters
-  private_nh_.param("s",           s,                  72);
-  private_nh_.param("t_high",      bin_hist_high,      1.f);
-  private_nh_.param("t_low",       bin_hist_low,       1.f);
-  private_nh_.param("r_enl",       radius_enlargement, 1.f);
-  private_nh_.param("cost_params", cost_params,        std::vector<float>(cost_default,   cost_default+3));
-  private_nh_.param("target",      target_xy,          std::vector<float>(target_default, target_default+2));
 
   //Services
   vfh_luts = nh.serviceClient<uav_nav::VFHLookUpTables>("uav_nav/vfh_luts");
@@ -86,6 +88,8 @@ int main(int argc, char** argv)
 void localPositionCb(const geometry_msgs::PointStamped::ConstPtr& msg)
 {
   local_position = *msg;
+  local_position.point.x = msg->point.y;
+  local_position.point.y = msg->point.x;
   shiftHistogramGrid(local_position);
 }
 
@@ -502,8 +506,8 @@ void publishCtrlCmd(float    k_d,
   vel_cmd.header.stamp    = ros::Time::now();
   vel_cmd.header.frame_id = "vfh_vel_cmd";
   vel_cmd.twist.linear.x  = 0; // This needs to be correctly controlled
-  //vel_cmd.twist.angular.z = wrapToPi(DEG2RAD(k_d * alpha));
-  vel_cmd.twist.angular.z = 0;
+  vel_cmd.twist.angular.z = -wrapToPi(DEG2RAD(k_d * alpha));
+  //vel_cmd.twist.angular.z = 0;
   vel_cmd_pub.publish(vel_cmd);
 }
 
