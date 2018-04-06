@@ -7,6 +7,7 @@ geometry_msgs::PointStamped   local_position; // Local position offset in FLU fr
 geometry_msgs::Vector3Stamped rpy;            // Roll, pitch, yaw
 geometry_msgs::Vector3Stamped velocity;       // Linear velocity
 cv::Mat                       hist_grid;      // Histogram grid 2D
+cv::Mat                       circle_mask;    // Mask used to create circular active window
 
 int main(int argc, char** argv)
 {
@@ -42,16 +43,19 @@ int main(int argc, char** argv)
   std::vector<int>      k_l;                           // Right borders of candidate valleys
   std::vector<int>      k_r;                           // Left borders of candidate valleys
   std::vector<float>    c;                             // Candidate directions
+  float                 k_target            = 0.0;     // Target direction
   float                 k_d                 = 0.0;     // Selected direction of motion
   float                 lin_vel             = 0.0;     //
   unsigned              vel_flag            = 0;
   unsigned              alpha               = 360 / s; // Sector angle
-  float                 k_target            = 0.0;     // Target direction
 
   // Histogram grid setup
   static int histDimension = round((float)CAMERARANGE*2/RESOLUTION_M);
-  if(histDimension%2 != 1) histDimension++;
+  if(histDimension%2 != 1)
+    histDimension++;
   hist_grid = cv::Mat::zeros(histDimension, histDimension, CV_8UC1);
+  circle_mask = cv::Mat::zeros(histDimension, histDimension, CV_8UC1);
+  circle(circle_mask, cv::Point((hist_grid.rows-1)/2, (hist_grid.cols-1)/2), CAMERARANGE*2, cv::Scalar(255), -1, 8, 0);
 
   //Services
   vfh_luts = nh.serviceClient<uav_nav::VFHLookUpTables>("uav_nav/vfh_luts");
@@ -66,24 +70,28 @@ int main(int argc, char** argv)
   vel_cmd_pub = nh.advertise<geometry_msgs::TwistStamped>("uav_nav/vel_cmd", 1);
 
   // Necessary functions before entering ros spin
-  getLUTs(histDimension, radius_enlargement, beta, dist_scaled, enlarge);
-  //ros::Rate r(1); //1Hz
+  getLUTs(histDimension, radius_enlargement, &beta, &dist_scaled, &enlarge);
 
   while(ros::ok())
   {
-    private_nh_.param("target",      target_xy,          std::vector<float>(target_default, target_default+2));
+    private_nh_.param("target", target_xy, std::vector<float>(target_default, target_default+2));
 
-    getTargetDir(alpha, target_xy, k_target);
-    binaryHist(s, alpha, bin_hist_high, bin_hist_low, beta, dist_scaled, enlarge, h);
-    maskedPolarHist(alpha, radius_enlargement, beta, h, masked_hist);
-    findValleyBorders(masked_hist, k_l, k_r);
-    findCandidateDirections(s, k_target, k_l, k_r, c);
-    calculateCost(s, alpha, k_target, c, cost_params, masked_hist, k_d, vel_flag);
-    ctrlVelCmd(target_xy, vel_flag, lin_vel);
+    getTargetDir(alpha, target_xy, &k_target);
+    binaryHist(s, alpha, bin_hist_high, bin_hist_low, beta, dist_scaled, enlarge, &h);
+    maskedPolarHist(alpha, radius_enlargement, beta, h, &masked_hist);
+    findValleyBorders(masked_hist, &k_l, &k_r);
+    findCandidateDirections(s, k_target, k_l, k_r, &c);
+    calculateCost(s, alpha, k_target, c, cost_params, masked_hist, &k_d, &vel_flag);
+    ctrlVelCmd(target_xy, &vel_flag, &lin_vel);
     publishCtrlCmd(k_d, lin_vel, alpha);
 
+    // Debug only
+    cv::Mat show;
+    resize(hist_grid, show, cv::Size(), 10, 10, cv::INTER_NEAREST);
+    imshow("Histogram grid", show);
+    cv::waitKey(1);
+
     ros::spinOnce();
-    //r.sleep();
   }
 
   return 0;
@@ -95,7 +103,7 @@ void localPositionCb(const geometry_msgs::PointStamped::ConstPtr& msg)
   local_position = *msg;
   local_position.point.x = msg->point.y;
   local_position.point.y = msg->point.x;
-  shiftHistogramGrid(local_position);
+  shiftHistogramGrid();
 }
 
 void velocityCb(const geometry_msgs::Vector3Stamped::ConstPtr& msg)
@@ -114,255 +122,217 @@ void laserScanCb(const sensor_msgs::LaserScan::ConstPtr& msg)
 }
 
 // Functions
-void getTargetDir(unsigned           alpha,
-                  std::vector<float> target,
-                  float             &k_target
-                 )
-{
-  float target_angle = std::atan2(target[1]-local_position.point.y, target[0]-local_position.point.x);
-  float angle_diff = wrapToPi(target_angle-rpy.vector.z);
-  k_target = RAD2DEG(angle_diff)/alpha;
-}
-
 void getLUTs(int                size,
              float              radius,
-             std::vector<float> &beta,
-             std::vector<float> &dist_scaled,
-             std::vector<float> &enlarge
+             std::vector<float> *beta,
+             std::vector<float> *dist_scaled,
+             std::vector<float> *enlarge
             )
 {
   vfh_luts.waitForExistence();
 
   uav_nav::VFHLookUpTables lut;
-  lut.request.size = size;
+  lut.request.size   = size;
   lut.request.radius = radius;
   vfh_luts.call(lut);
 
-  beta        = lut.response.beta;
-  dist_scaled = lut.response.dist;
-  enlarge     = lut.response.gamma;
+  *beta        = lut.response.beta;
+  *dist_scaled = lut.response.dist;
+  *enlarge     = lut.response.gamma;
 }
 
-void fillHistogramGrid(sensor_msgs::LaserScan msg_laser)
+void getTargetDir(unsigned                 alpha,
+                  const std::vector<float> &target,
+                  float                    *k_target
+                 )
 {
-  // Based on srcID, scalar times 90° is added to the yaw. CCW, Front = 0°
-  std::string cameraID = msg_laser.header.frame_id;
-  static int scalar; // this times 90° to rotate
-  if(cameraID == "front"){scalar = 0;}
-  /*else if(cameraID == "left"){scalar = 1;}
-  else if(cameraID == "rear"){scalar = 2;}
-  else if(cameraID == "right"){scalar = 3;}*/
-  else {return;} // don't need down facing camera
-  float yaw = rpy.vector.z;
-  yaw += scalar*M_PI/2;
+  float target_angle = std::atan2(target[1]-local_position.point.y, target[0]-local_position.point.x);
+  float angle_diff = wrapTo2Pi(target_angle-rpy.vector.z);
+  *k_target = RAD2DEG(angle_diff)/alpha;
+}
 
-  // Increment cell values at laserPoint with GRO mask and decrement cells along a line between center and laserPoint
-  static int increment = 3;
-  static int decrement = 1;
-  cv::Point laserPoint;
-  const int histCenter = (hist_grid.rows-1)/2;
-  // GRO filter
-  static cv::Mat_<float> kernel(3,3);
-  kernel << 0.5,0.5,0.5,0.5,1,0.5,0.5,0.5,0.5;
+void fillHistogramGrid(sensor_msgs::LaserScan msg)
+{
+  // Based on camera_ID, scalar * 90° is added to the yaw. CCW, north = 0°
+  static int scalar;
+  std::string camera_ID = msg.header.frame_id;
 
-  for(int i=0; i < msg_laser.ranges.size(); i++)
+  if(camera_ID == "front")
+    scalar = 0;
+  /*else if(camera_ID == "left")
+    scalar = 1;
+  else if(camera_ID == "rear")
+    scalar = 2;
+  else if(camera_ID == "right")
+    scalar = 3;*/
+  else
+    return;
+
+  float yaw = rpy.vector.z + scalar*C_PI/2;
+
+  // Increment cell values at laser_point with GRO mask and decrement cells along a line between center and laser_point
+  static const int increment = 3;
+  static const int decrement = 1;
+  static const int hist_center = (hist_grid.rows-1)/2;
+  static const cv::Mat kernel = (cv::Mat_<float>(3,3) << 0.5,0.5,0.5,0.5,1,0.5,0.5,0.5,0.5); // GRO filter
+  static cv::Point laser_point;
+
+  for(int i = 0; i < msg.ranges.size(); i++)
   {
-    if(msg_laser.ranges[i] > 0.5)
+    if(msg.ranges[i] > 0.5)
     {
-      laserPoint.x = histCenter - round(sin(yaw + msg_laser.angle_max - i * msg_laser.angle_increment) * msg_laser.ranges[i]);
-      laserPoint.y = histCenter - round(cos(yaw + msg_laser.angle_max - i * msg_laser.angle_increment) * msg_laser.ranges[i]);
+      laser_point.x = hist_center - round(sin(yaw + msg.angle_max - i * msg.angle_increment) * msg.ranges[i]);
+      laser_point.y = hist_center - round(cos(yaw + msg.angle_max - i * msg.angle_increment) * msg.ranges[i]);
 
       // Increment
-      if(hist_grid.at<unsigned char>(laserPoint) > 255 - increment)
-      { //Overflow protection
-        hist_grid.at<unsigned char>(laserPoint) = 255;
-      }
+      if(hist_grid.at<unsigned char>(laser_point) > 255 - increment)
+        hist_grid.at<unsigned char>(laser_point) = 255; // Overflow protection
       else
-      {
-        hist_grid.at<unsigned char>(laserPoint) += increment;
-      }
+        hist_grid.at<unsigned char>(laser_point) += increment;
 
       // Applying GRO mask
-      cv::Mat onePixelSourceROI(hist_grid, cv::Rect(laserPoint, cv::Size(1, 1)));
-      cv::Mat dst(cv::Size(1,1), CV_8UC1);
-      cv::filter2D(onePixelSourceROI, dst, CV_8UC1, kernel, cv::Point(-1,-1), 0, cv::BORDER_CONSTANT); // TEST if borders are coppied
-      hist_grid.at<unsigned char>(laserPoint) = dst.at<unsigned char>(0,0);
+      cv::Mat one_pixel_ROI(hist_grid, cv::Rect(laser_point, cv::Size(1, 1)));
+      cv::Mat dst(cv::Size(1, 1), CV_8UC1);
+      cv::filter2D(one_pixel_ROI, dst, CV_8UC1, kernel, cv::Point(-1,-1), 0, cv::BORDER_CONSTANT);
+      hist_grid.at<unsigned char>(laser_point) = dst.at<unsigned char>(0,0);
 
       // Decrement along a line
       cv::Mat linemask = cv::Mat::zeros(hist_grid.size(), CV_8UC1);
-      line(linemask, cv::Point(histCenter, histCenter), laserPoint, cv::Scalar(255), 1, 4);
-      linemask.at<unsigned char>(laserPoint) = 0;
-      cv::Mat histGridDec;
-      hist_grid.copyTo(histGridDec);
-      histGridDec -= decrement;
-      histGridDec.copyTo(hist_grid, linemask);
+      line(linemask, cv::Point(hist_center, hist_center), laser_point, cv::Scalar(255), 1, 4);
+      linemask.at<unsigned char>(laser_point) = 0;
+      cv::Mat hist_grid_dec;
+      hist_grid.copyTo(hist_grid_dec);
+      hist_grid_dec -= decrement;
+      hist_grid_dec.copyTo(hist_grid, linemask);
     }
   }
-  /*cv::Mat show;
-  resize(hist_grid, show, cv::Size(), 10, 10, cv::INTER_NEAREST);
-  //imshow("asd", show);
-  cv::waitKey(1);*/
 }
 
-void shiftHistogramGrid(geometry_msgs::PointStamped msg_pos)
+void shiftHistogramGrid()
 {
-  static float currentPos_x = msg_pos.point.x;
-  static float currentPos_y = msg_pos.point.y;
-  static float hystereses = 1.2;
-  static cv::Mat circle_mask(hist_grid.size(), CV_8UC1, cv::Scalar(0));
-  circle(circle_mask, cv::Point((hist_grid.rows-1)/2, (hist_grid.cols-1)/2), CAMERARANGE*2, cv::Scalar(255), -1, 8, 0);
+  static float current_pos_x = local_position.point.x;
+  static float current_pos_y = local_position.point.y;
+  static const float hysteresis = 1.2;
 
   // Shift grid left, right, up, down TEST DIRECTIONS
-  float diff = msg_pos.point.x - currentPos_x;
-  if(std::fabs(diff) > (hystereses*RESOLUTION_M/2))
+  float displacement_x = local_position.point.x - current_pos_x;
+  if(std::fabs(displacement_x) > (hysteresis*RESOLUTION_M/2))
   {
-    ROS_INFO("x_delta: %f",diff);
-    int offsetX = trunc(diff / RESOLUTION_M);
-    cv::Mat trans_mat = (cv::Mat_<float>(2,3) << 1, 0, 0, 0, 1, offsetX);
-    warpAffine(hist_grid,hist_grid,trans_mat,hist_grid.size());
-    currentPos_x = currentPos_x + std::copysign((RESOLUTION_M*offsetX), diff);
-    cv::Mat masked = cv::Mat::zeros(hist_grid.size(), CV_8UC1);
+    int offset_x = trunc(displacement_x / RESOLUTION_M);
+    cv::Mat trans_mat = (cv::Mat_<float>(2,3) << 1, 0, 0, 0, 1, offset_x);
+    warpAffine(hist_grid, hist_grid, trans_mat, hist_grid.size());
+    current_pos_x = current_pos_x + std::copysign((RESOLUTION_M*offset_x), displacement_x);
+    cv::Mat masked;
     hist_grid.copyTo(masked, circle_mask);
     hist_grid = masked;
   }
 
-  diff = msg_pos.point.y - currentPos_y;
-  if(std::fabs(diff) > (hystereses*RESOLUTION_M/2))
+  float displacement_y = local_position.point.y - current_pos_y;
+  if(std::fabs(displacement_y) > (hysteresis*RESOLUTION_M/2))
   {
-    ROS_INFO("y_delta: %f",diff);
-    int offsetY = -trunc(diff / RESOLUTION_M);
-    cv::Mat trans_mat = (cv::Mat_<float>(2,3) << 1, 0, offsetY, 0, 1, 0);
-    warpAffine(hist_grid,hist_grid,trans_mat,hist_grid.size());
-    currentPos_y = currentPos_y + std::copysign((RESOLUTION_M*offsetY), diff);
-    cv::Mat masked = cv::Mat::zeros(hist_grid.size(), CV_8UC1);
+    int offset_y = -trunc(displacement_y / RESOLUTION_M);
+    cv::Mat trans_mat = (cv::Mat_<float>(2,3) << 1, 0, offset_y, 0, 1, 0);
+    warpAffine(hist_grid, hist_grid, trans_mat, hist_grid.size());
+    current_pos_y = current_pos_y + std::copysign((RESOLUTION_M*offset_y), displacement_y);
+    cv::Mat masked;
     hist_grid.copyTo(masked, circle_mask);
     hist_grid = masked;
   }
-
-  cv::Mat show;
-  resize(hist_grid, show, cv::Size(), 10, 10, cv::INTER_NEAREST);
-  imshow("asd", show);
-  cv::waitKey(1);
 }
 
-void binaryHist(unsigned              s,
-                unsigned              alpha,
-                float                 t_high,
-                float                 t_low,
-                std::vector<float>    beta,
-                std::vector<float>    dist_scaled,
-                std::vector<float>    enlarge,
-                std::vector<unsigned> &h
+void binaryHist(unsigned                 s,
+                unsigned                 alpha,
+                float                    t_high,
+                float                    t_low,
+                const std::vector<float> &beta,
+                const std::vector<float> &dist_scaled,
+                const std::vector<float> &enlarge,
+                std::vector<unsigned>    *h
                )
 {
   float polar[s] = {0};
+  for(int i = 0; i < hist_grid.rows; i++)
+  {
+    for(int j = 0; j < hist_grid.cols; j++)
+    {
+      unsigned index = j+(i*hist_grid.cols);
+      float magnitude = pow((float)hist_grid.at<unsigned char>(i, j)/255.0, 2) * dist_scaled[index];
+      for(int k = 0; k < s; k++)
+      {
+        if(isBetweenRad(wrapTo2Pi(beta[index])-enlarge[index], wrapTo2Pi(beta[index])+enlarge[index], k*DEG2RAD(alpha)))
+          polar[k] += magnitude;
+      }
+    }
+  }
+
+  static std::vector<unsigned> prev_h(s);
+  h->clear(); // Same as (*h).clear();
+  for(int k = 0; k < s; k++)
+  {
+    if(polar[k] > t_high)
+      h->push_back(1);
+    else if(polar[k] < t_low)
+      h->push_back(0);
+    else
+      h->push_back(prev_h[k]);
+  }
+
+  prev_h = *h;
+}
+
+void maskedPolarHist(unsigned                    alpha,
+                     float                       r_enl,
+                     const std::vector<float>    &beta,
+                     const std::vector<unsigned> &h,
+                     std::vector<unsigned>       *masked_hist
+                    )
+{
+  static const float t_obst      = 1.0;       // Obstacle threshold
+  static const float max_rot_vel = 1.0;       // Maximum rotational velocity
+
+  float yaw  = rpy.vector.z;                  // Heading of drone in radians
+  float r    = velocity.vector.x/max_rot_vel; // Minimum steering radius assuming it is the same for both directions
+  float back = wrapToPi(yaw-C_PI);            // Opposite direction of heading
+  float dxr  = r * sin(yaw);                  // X coord. of right trajectory circle
+  float dyr  = r * cos(yaw);                  // Y coord. of right trajectory circle
+  float dxl  = -dxr;                          // X coord. of left trajectory circle
+  float dyl  = -dyr;                          // Y coord. of left trajectory circle
+  float th_r = back;                          // Right limit angle
+  float th_l = back;                          // Left limit angle
 
   for(int i = 0; i < hist_grid.rows; i++)
   {
     for(int j = 0; j < hist_grid.cols; j++)
     {
-      unsigned index = j+i*hist_grid.cols;
-      float mag = pow(hist_grid.at<unsigned char>(i, j),2) * dist_scaled[index];
-      for(int k = 0; k < s; k++)
+      unsigned index = j+(i*hist_grid.cols);
+      if(hist_grid.at<unsigned char>(i, j) > t_obst)
       {
-        if(k*DEG2RAD(alpha)>=(beta[index]-enlarge[index]) && k*DEG2RAD(alpha)<=(beta[index]+enlarge[index]))
-          polar[k] += mag;
-      }
-    }
-  }
-
-  static std::vector<unsigned> prev_h(s); // check if this works correctly
-  h.clear();
-  for(int k = 0; k < s; k++)
-  {
-    if(polar[k] > t_high)
-    {
-      h.push_back(1);
-    }
-    else if(polar[k] < t_low)
-    {
-      h.push_back(0);
-    }
-    else
-    {
-      h.push_back(prev_h[k]);
-    }
-  }
-
-  prev_h = h;
-}
-
-void maskedPolarHist(unsigned              alpha,
-                     float                 r_enl,
-                     std::vector<float>    beta,
-                     std::vector<unsigned> h,
-                     std::vector<unsigned> &masked_hist
-                    )
-{
-  float yaw = rpy.vector.z;
-  float t_obst = 1;
-  float max_rot_vel = 1;
-  float r = velocity.vector.x/max_rot_vel; // Calculating the minimum steering radius, assumed that it´s the same for both directions
-  float back = wrapTo2Pi(yaw-C_PI);
-  back = RAD2DEG(back);
-  yaw = RAD2DEG(yaw);
-
-  // position of circle right (xr, yr) and left (xl, yl) relative to the drone position (middle of the grid)
-  float dxr = r * sin(yaw);
-  float dyr = r * cos(yaw);
-  float dxl = -dxr;
-  float dyl = -dyr;
-
-  float th_r = back;
-  float th_l = back; // Setting the limit angles
-
-  for(int i = 0; i < hist_grid.rows; i++)
-  {
-    for(int j=0; j < hist_grid.cols;j++)
-    {
-      unsigned index = j+i*hist_grid.cols;
-      if(hist_grid.at<unsigned char>(j, i) > t_obst)
-      {
-        // If the grid value is greter than cThreshold, enter loop
-        if(checkRight(yaw, beta[index], th_r) && blocked(dxr, dyr, i, j, r+r_enl))
-        {
+        if(isBetweenRad(th_r, yaw, beta[index]) && blocked(dxr, dyr, j, i, r+r_enl))
           th_r = beta[index];
-        }  // if angle is right to yaw and left to th_r: check blocked()
-        else if(checkLeft(yaw, beta[index], th_l) && blocked(dxl, dyl, i, j, r+r_enl))
-        {
+        else if(isBetweenRad(yaw, th_l, beta[index]) && blocked(dxl, dyl, j, i, r+r_enl))
           th_l = beta[index];
-        }
       }
     }
   }
 
-  // Building masked polar histogram
-  masked_hist.clear();
-  for(int x=0; x < h.size(); x++)
+  // Create masked polar histogram
+  masked_hist->clear();
+  for(int k = 0; k < h.size(); k++)
   {
-    //ROS_INFO("h[%i]: %i", x, h[x]);
-    //ROS_INFO("alpha: %i, x: %i, th_l: %f, th_r: %f, yaw: %f", alpha, x, th_l, th_r, yaw);
-    if(h[x] == 0 && inRange(alpha, x, th_l, th_r, yaw))
-    {
-      //ROS_INFO("masked[%i]: %i", x, masked_hist[x]);
-      masked_hist.push_back(0);
-    }
+    if(h[k] == 0 && (isBetweenRad(th_r, yaw, DEG2RAD(alpha)*k) || isBetweenRad(yaw, th_l, DEG2RAD(alpha)*k)))
+      masked_hist->push_back(0);
     else
-    {
-      ROS_INFO("masked[%i]: %i", x, masked_hist[x]);
-      masked_hist.push_back(1);
-    }
+      masked_hist->push_back(1);
   }
-  ROS_INFO("\n");
 }
 
-void findValleyBorders(std::vector<unsigned> masked_hist,
-                       std::vector<int>      &k_l,
-                       std::vector<int>      &k_r
+void findValleyBorders(const std::vector<unsigned> &masked_hist,
+                       std::vector<int>            *k_l,
+                       std::vector<int>            *k_r
                       )
 {
-  k_l.clear();
-  k_r.clear();
+  k_l->clear();
+  k_r->clear();
 
   unsigned current_val = masked_hist[0];
   for(unsigned i = 1; i < masked_hist.size(); i++)
@@ -371,38 +341,38 @@ void findValleyBorders(std::vector<unsigned> masked_hist,
     {
       if(masked_hist[i] == 1)
       {
-        k_r.push_back(i);
+        k_r->push_back(i);
         current_val = 1;
       }
       else
       {
-        k_l.push_back(i);
+        k_l->push_back(i);
         current_val = 0;
       }
     }
   }
 
-  if(k_r.size() != k_l.size() && masked_hist[0] == 0)
-    k_l.insert(k_l.begin(), 0);
+  if(k_r->size() != k_l->size() && masked_hist[0] == 0)
+    k_l->insert(k_l->begin(), 0);
 
-  if(k_r.size() != k_l.size() && masked_hist[0] == 1)
-    k_r.push_back(0);
+  if(k_r->size() != k_l->size() && masked_hist[0] == 1)
+    k_r->push_back(0);
 
-  if(masked_hist[0] == masked_hist[masked_hist.size()-1] && masked_hist[0] == 0 && k_r.size() != 0)
+  if(masked_hist[0] == masked_hist[masked_hist.size()-1] && masked_hist[0] == 0 && k_r->size() != 0)
   {
-    k_r.push_back(k_r.front());
-    k_r.erase(k_r.begin());
+    k_r->push_back(k_r->front());
+    k_r->erase(k_r->begin());
   }
 }
 
-void findCandidateDirections(unsigned           s,
-                             float              k_target,
-                             std::vector<int>   k_l,
-                             std::vector<int>   k_r,
-                             std::vector<float> &c
+void findCandidateDirections(unsigned                 s,
+                             float                    k_target,
+                             const std::vector<int>   &k_l,
+                             const std::vector<int>   &k_r,
+                             std::vector<float>       *c
                             )
 {
-  c.clear();
+  c->clear();
   static const unsigned s_max = 16; // Min number of sectors for a wide valley
 
   for(unsigned i = 0; i < k_l.size(); i++)
@@ -414,66 +384,52 @@ void findCandidateDirections(unsigned           s,
       {
         float c_tmp = (k_r.at(i) + k_l.at(i) - s) / 2.0;
         if(c_tmp < 0)
-        {
-          c.push_back(c_tmp + s);
-        }
+          c->push_back(c_tmp + s);
         else
-        {
-          c.push_back(c_tmp);
-        }
+          c->push_back(c_tmp);
       }
       else
       {
         float c_tmp = k_r.at(i) - (s_max / 2.0);
         if(c_tmp < 0)
-        {
-          c.push_back(c_tmp + s);
-        }
+          c->push_back(c_tmp + s);
         else
-        {
-          c.push_back(c_tmp);
-        }
+          c->push_back(c_tmp);
+
         c_tmp = k_l.at(i) + (s_max / 2.0);
         if(c_tmp >= s)
-        {
-          c.push_back(c_tmp - s);
-        }
+          c->push_back(c_tmp - s);
         else
-        {
-          c.push_back(c_tmp);
-        }
+          c->push_back(c_tmp);
+
         if((k_target < k_r.at(i) && k_target + s > k_l.at(i)) || (k_target > k_l.at(i) && k_target < k_r.at(i) + s))
-        {
-          c.push_back(k_target);
-        }
+          c->push_back(k_target);
       }
     }
     else
     {
       unsigned valley_size = k_r.at(i) - k_l.at(i);
       if(valley_size <= s_max)
-      {
-        c.push_back((k_r.at(i) + k_l.at(i)) / 2.0);
-      }
+        c->push_back((k_r.at(i) + k_l.at(i)) / 2.0);
       else
       {
-        c.push_back(k_r.at(i) - (s_max / 2.0));
-        c.push_back(k_l.at(i) + (s_max / 2.0));
+        c->push_back(k_r.at(i) - (s_max / 2.0));
+        c->push_back(k_l.at(i) + (s_max / 2.0));
         if(k_target > k_l.at(i) && k_target < k_r.at(i))
-          c.push_back(k_target);
+          c->push_back(k_target);
       }
     }
   }
 }
 
-void calculateCost(unsigned              s,
-                   unsigned              alpha,
-                   float                 k_target,
-                   std::vector<float>    c,
-                   std::vector<float>    mu,
-                   std::vector<unsigned> masked_hist,
-                   float                 &k_d,
-                   unsigned              &vel_flag
+void calculateCost(unsigned                    s,
+                   unsigned                    alpha,
+                   float                       k_target,
+                   const std::vector<float>    &c,
+                   const std::vector<float>    &mu,
+                   const std::vector<unsigned> &masked_hist,
+                   float                       *k_d,
+                   unsigned                    *vel_flag
                   )
 {
   static float prev_k_d = 0.0; // Previous direction of motion
@@ -484,11 +440,11 @@ void calculateCost(unsigned              s,
     for(auto &steering_dir : c)
     {
       float tmp_g = mu[0] * deltaC(steering_dir, k_target,                    s) +
-                    mu[1] * deltaC(steering_dir, RAD2DEG(rpy.vector.z)/alpha, s) +
+                    mu[1] * deltaC(steering_dir, rpy.vector.z/DEG2RAD(alpha), s) +
                     mu[2] * deltaC(steering_dir, prev_k_d,                    s);
       if(tmp_g < g)
       {
-        k_d = steering_dir;
+        *k_d = steering_dir;
         g = tmp_g;
       }
     }
@@ -496,50 +452,50 @@ void calculateCost(unsigned              s,
   else
   {
     if(masked_hist[0] == 0)
-      k_d = k_target;
+      *k_d = k_target;
     else
     {
-      switch (vel_flag)
+      switch (*vel_flag)
       {
         case 0:
-          k_d = prev_k_d;
-          vel_flag = 1;
+          *k_d = prev_k_d;
+          *vel_flag = 1;
           break;
         case 1:
-          k_d = prev_k_d;
-          vel_flag = 2;
+          *k_d = prev_k_d;
+          *vel_flag = 2;
           break;
       }
     }
   }
 
-  prev_k_d = k_d;
+  prev_k_d = *k_d;
 }
 
-void ctrlVelCmd(std::vector<float> target_xy,
-                unsigned           &vel_flag,
-                float              &lin_vel
+void ctrlVelCmd(const std::vector<float> &target_xy,
+                unsigned                 *vel_flag,
+                float                    *lin_vel
                )
 {
-  static const float max_vel = 1.0;
+  static const float max_vel       = 1.0;
   static const float target_radius = 2.0;
 
   float target_distance = sqrt(pow(target_xy[0]-local_position.point.x,2)+pow(target_xy[1]-local_position.point.y,2));
   if(target_distance > target_radius)
-    lin_vel = max_vel;
+    *lin_vel = max_vel;
   else if (target_distance > 0.2)
-    lin_vel = (target_distance/target_radius) * max_vel;
+    *lin_vel = (target_distance/target_radius) * max_vel;
   else
-    lin_vel = 0;
+    *lin_vel = 0;
 
-  switch (vel_flag)
+  switch (*vel_flag)
   {
     case 1:
-      lin_vel *= 0.5;
+      *lin_vel *= 0.5;
       break;
     case 2:
-      lin_vel = 0;
-      vel_flag = 0;
+      *lin_vel = 0;
+      *vel_flag = 0;
       break;
   }
 }
@@ -558,6 +514,16 @@ void publishCtrlCmd(float    k_d,
   vel_cmd_pub.publish(vel_cmd);
 }
 
+bool blocked(float xt, // x coordinate of trajectory center
+             float yt, // y coordinate of trajectory center
+             float xc, // x coordinate of active cell
+             float yc, // y coordinate of active cell
+             float r   // Turning + safety radius
+            )
+{
+  return ((pow(xt-xc,2)+pow(yt-yc,2))*pow(RESOLUTION_M, 2) < pow(r, 2)); // Returns true if circles overlap
+}
+
 float deltaC(float    c1,
              float    c2,
              unsigned s
@@ -566,67 +532,16 @@ float deltaC(float    c1,
   return std::min(std::min(std::fabs(c1-c2-s), std::fabs(c1-c2+s)), std::fabs(c1-c2));
 }
 
-float wrapToPi(float angle) {
-  angle = std::fmod(angle + C_PI, 2*C_PI);
-  if(angle < 0) angle += 2 * C_PI;
-  return (angle - C_PI);
-}
-
-float wrapTo2Pi(float angle)
+bool isBetweenRad(float start,
+                  float end,
+                  float mid
+                 )
 {
-  angle = std::fmod(angle, 2*C_PI);
-  if(angle < 0)
-    angle += 2*C_PI;
-  return angle;
-}
+  start = wrapTo2Pi(start);
+  end = wrapTo2Pi(end);
+  mid = wrapTo2Pi(mid);
 
-bool blocked(float xt, // x coordinate of trajectory center
-             float yt, // y coordinate of trajectory center
-             float yc, // y coordinate of active cell
-             float xc, // x coordinate of active cell
-             float r   // Turning + safety radius
-            )
-{
-  return (pow(xt-xc,2)+pow(yt-yc,2) < pow(r,2)); // returns True if circles overlap
-}
-
-bool checkRight(float y,
-                float b,
-                float r
-               )
-{
-  if(y < 180)
-  {
-    y += 180;
-    b = std::fmod((b+180),360);
-    r = std::fmod((r+180),360);
-  }
-
-  return ((y > b) && (b > r));
-}
-
-bool checkLeft(float y,
-               float b,
-               float l
-              )
-{
-  if (y > 180)
-  {
-    y += 180;
-    b = std::fmod((b+180),360);
-    l = std::fmod((l+180),360);
-  }
-
-  return ((y < b) && (b < l));
-}
-
-bool inRange(unsigned alpha,
-             int      x,
-             float    th_l,
-             float    th_r,
-             float    yaw
-            )
-{
-  float di = alpha*x + alpha/2;
-  return (checkLeft(yaw, di, th_l) || checkRight(yaw, di, th_r));
+  end = (end - start) < 0.0f ? end - start + (2*C_PI) : end - start;
+  mid = (mid - start) < 0.0f ? mid - start + (2*C_PI) : mid - start;
+  return (mid < end);
 }

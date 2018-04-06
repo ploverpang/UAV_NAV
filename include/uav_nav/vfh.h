@@ -21,23 +21,19 @@ void RPYCb(const geometry_msgs::Vector3Stamped::ConstPtr& msg);
 void laserScanCb(const sensor_msgs::LaserScan::ConstPtr& msg);
 
 // Functions
-void getTargetDir(unsigned alpha, std::vector<float> target, float &k_target);
-void getLUTs(int size, float radius, std::vector<float> &beta, std::vector<float> &dist_scaled, std::vector<float> &enlarge);
-void fillHistogramGrid(sensor_msgs::LaserScan msg_laser);
-void shiftHistogramGrid(geometry_msgs::PointStamped msg_pos);
-void binaryHist(unsigned s, unsigned alpha, float t_high, float t_low, std::vector<float> beta, std::vector<float> dist_scaled, std::vector<float> enlarge, std::vector<unsigned> &h);
-void maskedPolarHist(unsigned alpha, float r_enl, std::vector<float> beta, std::vector<unsigned> h, std::vector<unsigned> &masked_hist);
-void findValleyBorders(std::vector<unsigned> masked_hist, std::vector<int> &k_l, std::vector<int> &k_r);
-void findCandidateDirections(unsigned s, float k_target, std::vector<int> k_l, std::vector<int> k_r, std::vector<float> &c);
-void calculateCost(unsigned s, unsigned alpha, float k_target, std::vector<float> c, std::vector<float> mu, std::vector<unsigned> masked_hist, float &k_d, unsigned &vel_flag);
-void ctrlVelCmd(std::vector<float>target_xy, unsigned &vel_flag, float &lin_vel);
+void getLUTs(int size, float radius, std::vector<float> *beta, std::vector<float> *dist_scaled, std::vector<float> *enlarge);
+void getTargetDir(unsigned alpha, const std::vector<float> &target, float *k_target);
+void fillHistogramGrid(sensor_msgs::LaserScan msg);
+void shiftHistogramGrid();
+void binaryHist(unsigned s, unsigned alpha, float t_high, float t_low, const std::vector<float> &beta, const std::vector<float> &dist_scaled, const std::vector<float> &enlarge, std::vector<unsigned> *h);
+void maskedPolarHist(unsigned alpha, float r_enl, const std::vector<float> &beta, const std::vector<unsigned> &h, std::vector<unsigned> *masked_hist);
+void findValleyBorders(const std::vector<unsigned> &masked_hist, std::vector<int> *k_l, std::vector<int> *k_r);
+void findCandidateDirections(unsigned s, float k_target, const std::vector<int> &k_l, const std::vector<int> &k_r, std::vector<float> *c);
+void calculateCost(unsigned s, unsigned alpha, float k_target, const std::vector<float> &c, const std::vector<float> &mu, const std::vector<unsigned> &masked_hist, float *k_d, unsigned *vel_flag);
+void ctrlVelCmd(const std::vector<float> &target_xy, unsigned *vel_flag, float *lin_vel);
 void publishCtrlCmd(float k_d, float lin_vel, unsigned alpha);
+bool blocked(float xt, float yt, float xc, float yc, float r);
 float deltaC(float c1, float c2, unsigned s);
-float wrapToPi(float angle);
-float wrapTo2Pi(float angle);
-bool blocked(float xt, float yt, float yc, float xc, float r);
-bool checkRight(float y, float b, float r);
-bool checkLeft(float y, float b, float l);
-bool inRange(unsigned alpha, int x, float th_l, float th_r, float yaw);
+bool isBetweenRad(float start, float end, float mid);
 
 #endif // UAVNAV_VFH_H_

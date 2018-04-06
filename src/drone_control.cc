@@ -175,12 +175,6 @@ void sendVelCmd(geometry_msgs::TwistStamped cmd)
   ctrl_vel_cmd_pub.publish(controlVelYawRate);
 }
 
-float wrapToPi(float angle) {
-  angle = std::fmod(angle + C_PI, 2*C_PI);
-  if(angle < 0) angle += 2 * C_PI;
-  return (angle - C_PI);
-}
-
 void quatToEuler()
 {
   geometry_msgs::Vector3Stamped rpy;
