@@ -177,7 +177,7 @@ void fillHistogramGrid(sensor_msgs::LaserScan msg)
   static const cv::Mat kernel = (cv::Mat_<float>(3,3) << 0.5,0.5,0.5,0.5,1,0.5,0.5,0.5,0.5); // GRO filter
   static cv::Point laser_point;
 
-  for(int i = 0; i < msg.ranges.size(); i++)
+  for(int i = 0; i < msg.ranges.size(); ++i)
   {
     if(msg.ranges[i] > 0.5)
     {
@@ -251,13 +251,13 @@ void binaryHist(unsigned                 s,
                )
 {
   float polar[s] = {0};
-  for(int i = 0; i < hist_grid.rows; i++)
+  for(int i = 0; i < hist_grid.rows; ++i)
   {
-    for(int j = 0; j < hist_grid.cols; j++)
+    for(int j = 0; j < hist_grid.cols; ++j)
     {
       unsigned index = j+(i*hist_grid.cols);
       float magnitude = pow((float)hist_grid.at<unsigned char>(i, j)/255.0, 2) * dist_scaled[index];
-      for(int k = 0; k < s; k++)
+      for(int k = 0; k < s; ++k)
       {
         if(isBetweenRad(wrapTo2Pi(beta[index])-enlarge[index], wrapTo2Pi(beta[index])+enlarge[index], k*DEG2RAD(alpha)))
           polar[k] += magnitude;
@@ -267,7 +267,7 @@ void binaryHist(unsigned                 s,
 
   static std::vector<unsigned> prev_h(s);
   h->clear(); // Same as (*h).clear();
-  for(int k = 0; k < s; k++)
+  for(int k = 0; k < s; ++k)
   {
     if(polar[k] > t_high)
       h->push_back(1);
@@ -300,9 +300,9 @@ void maskedPolarHist(unsigned                    alpha,
   float th_r = back;                          // Right limit angle
   float th_l = back;                          // Left limit angle
 
-  for(int i = 0; i < hist_grid.rows; i++)
+  for(int i = 0; i < hist_grid.rows; ++i)
   {
-    for(int j = 0; j < hist_grid.cols; j++)
+    for(int j = 0; j < hist_grid.cols; ++j)
     {
       unsigned index = j+(i*hist_grid.cols);
       if(hist_grid.at<unsigned char>(i, j) > t_obst)
@@ -317,7 +317,7 @@ void maskedPolarHist(unsigned                    alpha,
 
   // Create masked polar histogram
   masked_hist->clear();
-  for(int k = 0; k < h.size(); k++)
+  for(int k = 0; k < h.size(); ++k)
   {
     if(h[k] == 0 && (isBetweenRad(th_r, yaw, DEG2RAD(alpha)*k) || isBetweenRad(yaw, th_l, DEG2RAD(alpha)*k)))
       masked_hist->push_back(0);
@@ -335,7 +335,7 @@ void findValleyBorders(const std::vector<unsigned> &masked_hist,
   k_r->clear();
 
   unsigned current_val = masked_hist[0];
-  for(unsigned i = 1; i < masked_hist.size(); i++)
+  for(unsigned i = 1; i < masked_hist.size(); ++i)
   {
     if(masked_hist[i] != current_val)
     {
@@ -375,7 +375,7 @@ void findCandidateDirections(unsigned                 s,
   c->clear();
   static const unsigned s_max = 16; // Min number of sectors for a wide valley
 
-  for(unsigned i = 0; i < k_l.size(); i++)
+  for(unsigned i = 0; i < k_l.size(); ++i)
   {
     if(k_l.at(i) > k_r.at(i))
     {
@@ -480,7 +480,7 @@ void ctrlVelCmd(const std::vector<float> &target_xy,
   static const float max_vel       = 1.0;
   static const float target_radius = 2.0;
 
-  float target_distance = sqrt(pow(target_xy[0]-local_position.point.x,2)+pow(target_xy[1]-local_position.point.y,2));
+  float target_distance = sqrt(pow(target_xy[0]-local_position.point.x, 2)+pow(target_xy[1]-local_position.point.y, 2));
   if(target_distance > target_radius)
     *lin_vel = max_vel;
   else if (target_distance > 0.2)
