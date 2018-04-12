@@ -33,7 +33,7 @@ int main(int argc, char** argv)
   ros::Subscriber control_cmd_sub   = nh.subscribe("uav_nav/vel_cmd",  	      1, &velCmdCb);
 
   // Publish the control signal
-  ctrl_vel_cmd_pub = nh.advertise<sensor_msgs::Joy>("dji_sdk/flight_control_setpoint_ENUvelocity_yawrate", 1);
+  ctrl_vel_cmd_pub = nh.advertise<sensor_msgs::Joy>("dji_sdk/flight_control_setpoint_generic", 1);
   rpy_pub          = nh.advertise<geometry_msgs::Vector3Stamped>("uav_nav/roll_pitch_yaw",                 1);
 
   if(isM100() && setLocalPositionRef())
@@ -167,10 +167,12 @@ void sendVelCmd(geometry_msgs::TwistStamped cmd)
   ROS_DEBUG("Vx: %.3f /tYaw_rate: %.3f", cmd.twist.linear.x, cmd.twist.angular.z);
 
   sensor_msgs::Joy controlVelYawRate;
+  uint8_t flag = (DJISDK::VERTICAL_VELOCITY | DJISDK::HORIZONTAL_VELOCITY | DJISDK::YAW_RATE | DJISDK::HORIZONTAL_BODY | DJISDK::STABLE_ENABLE);
   controlVelYawRate.axes.push_back(cmd.twist.linear.x);
   controlVelYawRate.axes.push_back(0);
   controlVelYawRate.axes.push_back(0);
   controlVelYawRate.axes.push_back(cmd.twist.angular.z);
+  controlVelYawRate.axes.push_back(flag);
 
   ctrl_vel_cmd_pub.publish(controlVelYawRate);
 }

@@ -8,6 +8,7 @@ geometry_msgs::Vector3Stamped rpy;            // Roll, pitch, yaw
 geometry_msgs::Vector3Stamped velocity;       // Linear velocity
 cv::Mat                       hist_grid;      // Histogram grid 2D
 cv::Mat                       circle_mask;    // Mask used to create circular active window
+float                 k_target            = 0.0;     // Target direction
 
 int main(int argc, char** argv)
 {
@@ -32,7 +33,7 @@ int main(int argc, char** argv)
   private_nh_.param("t_low",       bin_hist_low,       1.f);
   private_nh_.param("r_enl",       radius_enlargement, 1.f);
   private_nh_.param("cost_params", cost_params,        std::vector<float>(cost_default,   cost_default+3));
-  private_nh_.param("target",      target_xy,          std::vector<float>(target_default, target_default+2));
+  //private_nh_.param("target",      target_xy,          std::vector<float>(target_default, target_default+2));
 
   // Local variables
   std::vector<float>    beta;                          // Histogram grid cell angle from RCP
@@ -43,7 +44,7 @@ int main(int argc, char** argv)
   std::vector<int>      k_l;                           // Right borders of candidate valleys
   std::vector<int>      k_r;                           // Left borders of candidate valleys
   std::vector<float>    c;                             // Candidate directions
-  float                 k_target            = 0.0;     // Target direction
+  //float                 k_target            = 0.0;     // Target direction
   float                 k_d                 = 0.0;     // Selected direction of motion
   float                 lin_vel             = 0.0;     //
   unsigned              vel_flag            = 0;
@@ -71,10 +72,11 @@ int main(int argc, char** argv)
 
   // Necessary functions before entering ros spin
   getLUTs(histDimension, radius_enlargement, &beta, &dist_scaled, &enlarge);
-
+  target_xy.push_back(10);
+  target_xy.push_back(5);
   while(ros::ok())
   {
-    private_nh_.param("target", target_xy, std::vector<float>(target_default, target_default+2));
+    //private_nh_.param("target", target_xy, std::vector<float>(target_default, target_default+2));
 
     getTargetDir(alpha, target_xy, &k_target);
     binaryHist(s, alpha, bin_hist_high, bin_hist_low, beta, dist_scaled, enlarge, &h);
@@ -149,6 +151,7 @@ void getTargetDir(unsigned                 alpha,
   float target_angle = std::atan2(target[1]-local_position.point.y, target[0]-local_position.point.x);
   float angle_diff = wrapTo2Pi(target_angle-rpy.vector.z);
   *k_target = RAD2DEG(angle_diff)/alpha;
+  //ROS_INFO("target: [%f, %f]\ntarget_angle: %f\nangle_diff: %f\nk_target: %f\n", target[0], target[1], target_angle, angle_diff, *k_target);
 }
 
 void fillHistogramGrid(sensor_msgs::LaserScan msg)
@@ -508,9 +511,12 @@ void publishCtrlCmd(float    k_d,
   geometry_msgs::TwistStamped vel_cmd;
   vel_cmd.header.stamp    = ros::Time::now();
   vel_cmd.header.frame_id = "vfh_vel_cmd";
-  vel_cmd.twist.linear.x  = lin_vel;
+  //vel_cmd.twist.linear.x  = lin_vel;
+  vel_cmd.twist.linear.x  = 1;
   //vel_cmd.twist.angular.z = -wrapToPi(DEG2RAD(k_d * alpha)-rpy.vector.z);
-  vel_cmd.twist.angular.z = 0;
+  ROS_INFO("target*alpha: %f\ndeg2rad: %f\nwrapToPi: %f", k_target * alpha, DEG2RAD(k_target * alpha), wrapToPi(DEG2RAD(k_target * alpha)));
+  vel_cmd.twist.angular.z = -wrapToPi(DEG2RAD(k_target * alpha));
+  //vel_cmd.twist.angular.z = 0;
   vel_cmd_pub.publish(vel_cmd);
 }
 

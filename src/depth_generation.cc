@@ -84,7 +84,7 @@ cv::Mat CreateDepthImage(cv::Mat L_img, cv::Mat R_img){
 
 		if (!frameBuffer_sgbm.empty()){
 			masked_sgbm = maskOutliers(left_sgbm, frameBuffer_sgbm, 1, 10);  //SUPER IMPORTANT DO WOMETHING WITH THIS!!!
-			masked_sgbm = roundMorph(masked_sgbm, 5, 9); // This might be super resource hugging. have to test
+			//masked_sgbm = roundMorph(masked_sgbm, 5, 9); // This might be super resource hugging. have to test
 			cv::Mat float_mat = dispToMeter(masked_sgbm);
 			float_mat = fovReduction(float_mat);
 			DepthProcessing(float_mat);
