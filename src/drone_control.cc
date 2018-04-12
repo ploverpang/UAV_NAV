@@ -148,14 +148,6 @@ void attitudeCb(const geometry_msgs::QuaternionStamped::ConstPtr& msg)
 	attitude_state = *msg;
 
   quatToEuler();
-
-
-  switch(ctrl_state) {
-    case 0: break;
-    case 1:
-      sendVelCmd(vel_cmd);
-      break;
-  }
 }
 
 void velCmdCb(const geometry_msgs::TwistStamped::ConstPtr& msg)
@@ -176,10 +168,10 @@ void sendVelCmd(geometry_msgs::TwistStamped cmd)
 
   sensor_msgs::Joy controlVelYawRate;
   uint8_t flag = (DJISDK::VERTICAL_VELOCITY | DJISDK::HORIZONTAL_VELOCITY | DJISDK::YAW_RATE | DJISDK::HORIZONTAL_BODY | DJISDK::STABLE_ENABLE);
-  controlVelYawRate.axes.push_back(1);
-  controlVelYawRate.axes.push_back(-1);//-cmd.twist.linear.x);
+  controlVelYawRate.axes.push_back(cmd.twist.linear.x);
+  controlVelYawRate.axes.push_back(0);//-cmd.twist.linear.x);
   controlVelYawRate.axes.push_back(0);
-  controlVelYawRate.axes.push_back(0);
+  controlVelYawRate.axes.push_back(cmd.twist.angular.z);
   controlVelYawRate.axes.push_back(flag);
 
   ctrl_vel_cmd_pub.publish(controlVelYawRate);

@@ -513,9 +513,8 @@ void publishCtrlCmd(float    k_d,
   vel_cmd.header.frame_id = "vfh_vel_cmd";
   //vel_cmd.twist.linear.x  = lin_vel;
   vel_cmd.twist.linear.x  = 1;
-  //vel_cmd.twist.angular.z = -wrapToPi(DEG2RAD(k_d * alpha)-rpy.vector.z);
   ROS_INFO("target*alpha: %f\ndeg2rad: %f\nwrapToPi: %f", k_target * alpha, DEG2RAD(k_target * alpha), wrapToPi(DEG2RAD(k_target * alpha)));
-  vel_cmd.twist.angular.z = -wrapToPi(DEG2RAD(k_target * alpha));
+  vel_cmd.twist.angular.z = wrapToPi(DEG2RAD(k_target * alpha)-(C_PI/2));
   //vel_cmd.twist.angular.z = 0;
   vel_cmd_pub.publish(vel_cmd);
 }
