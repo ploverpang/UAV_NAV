@@ -105,8 +105,6 @@ int main(int argc, char** argv)
 void localPositionCb(const geometry_msgs::PointStamped::ConstPtr& msg)
 {
   local_position = *msg;
-  local_position.point.x = msg->point.y;
-  local_position.point.y = msg->point.x;
   shiftHistogramGrid();
 }
 
@@ -153,7 +151,7 @@ void getTargetDir(unsigned                 alpha,
   float target_angle = std::atan2(target[1]-local_position.point.y, target[0]-local_position.point.x);
   float angle_diff = wrapTo2Pi(target_angle-rpy.vector.z);
   *k_target = RAD2DEG(angle_diff)/alpha;
-  //ROS_INFO("target: [%f, %f]\ntarget_angle: %f\nangle_diff: %f\nk_target: %f\n", target[0], target[1], target_angle, angle_diff, *k_target);
+  ROS_INFO("target: [%f, %f]\ntarget_angle: %f\nangle_diff: %f\nk_target: %f\n", target[0], target[1], target_angle, angle_diff, *k_target);
 }
 
 void fillHistogramGrid(sensor_msgs::LaserScan msg)
@@ -186,8 +184,8 @@ void fillHistogramGrid(sensor_msgs::LaserScan msg)
   {
     if(msg.ranges[i] > 0.5)
     {
-      laser_point.x = hist_center - round(sin(yaw + msg.angle_max - i * msg.angle_increment) * msg.ranges[i]);
-      laser_point.y = hist_center - round(cos(yaw + msg.angle_max - i * msg.angle_increment) * msg.ranges[i]);
+      laser_point.x = hist_center - round(sin(yaw + msg.angle_max - i * msg.angle_increment) * msg.ranges[i] / RESOLUTION_M);
+      laser_point.y = hist_center - round(cos(yaw + msg.angle_max - i * msg.angle_increment) * msg.ranges[i] / RESOLUTION_M);
 
       // Increment
       if(hist_grid.at<unsigned char>(laser_point) > 255 - increment)
