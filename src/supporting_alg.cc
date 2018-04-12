@@ -60,9 +60,9 @@ float findsmallestX(std::vector<int> arr, int numberOfArrayElements, int stopNum
     cv::imshow(name, hist_image);
   }
 
-  cv::Mat maskOutliers(cv::Mat src_img, cv::Mat prevFrame, int nFrames, int diffThreshold){
+  void maskOutliers(const cv::Mat& src_img, cv::Mat& dst_img, cv::Mat prevFrame, int nFrames, int diffThreshold){
     cv::Mat mask = Mat(src_img.size(), CV_8UC1, cv::Scalar(0));
-    cv::Mat dst_img = cv::Mat::zeros(src_img.size(), CV_8UC1);
+    cv::Mat zeros = cv::Mat::zeros(src_img.size(), src_img.type());
     cv::Mat maskSum = Mat(src_img.size(), CV_32FC1, Scalar(0));
     static std::list<cv::Mat> maskBuffer;  // Container for stored masks;
 
@@ -85,16 +85,13 @@ float findsmallestX(std::vector<int> arr, int numberOfArrayElements, int stopNum
     }
     cv::threshold(maskSum, maskSum, 1, 255, 1);
     maskSum.convertTo(maskSum, CV_8UC1);
-    //imshow("Thresholded mask", maskSum);
-    waitKey(1);
-
-    src_img.copyTo(dst_img,maskSum);
-
-    return dst_img;
+    src_img.copyTo(zeros,maskSum);
+    dst_img = zeros.clone();
+    return;
   }
 
 
-  cv::Mat legacyRoundMorph(Mat src_img, int byNumber, int xy){
+  void legacyRoundMorph(cv::Mat& src_img, int byNumber, int xy){
     src_img /= byNumber;
     src_img *= byNumber;
 
@@ -103,18 +100,18 @@ float findsmallestX(std::vector<int> arr, int numberOfArrayElements, int stopNum
     morphologyEx(src_img, src_img, MORPH_OPEN, element);
     morphologyEx(src_img, src_img, MORPH_CLOSE, element);
     //imshow("after morphology", src_img);
-    return src_img;
+    return;
   }
 
-  cv::Mat roundMorph(cv::Mat src_img, int offset, int threshold){
+  void roundMorph(const cv::Mat& src_img, cv::Mat dst_img, int offset, int threshold){
     cv::Mat mask(src_img.size(), CV_8UC1, cv::Scalar(255));
     for (int i = 0; i < src_img.rows; ++i){
       for (int j = 0; j < src_img.cols; ++j){
         bool marked = 0;
         for (int k = i - offset; k <= i + offset; k++){
           if (k >= 0 && k < src_img.rows){
-            for (int l = j -offset; l <= i + offset; l++){
-              if (l >= 0 && l < src_img.rows && (k != i || l != j)){
+            for (int l = j - offset; l <= j + offset; l++){
+              if (l >= 0 && l < src_img.cols){
                 if (abs(src_img.at<unsigned char>(j,i) - src_img.at<unsigned char>(l,k)) > threshold){
                   marked = 1;
                 }
@@ -123,16 +120,19 @@ float findsmallestX(std::vector<int> arr, int numberOfArrayElements, int stopNum
           }
         }
         if (marked == 1){
-          mask.at<unsigned char>(j,i) = 0;
+          //mask.at<unsigned char>(j,i) = 0;
         }
       }
     }
+    
     cv::Mat output(src_img.size(), src_img.type(), cv::Scalar(0));
     src_img.copyTo(output, mask);
-    return output;
+    imshow("mask morh", mask);
+    dst_img = output.clone();
+    return;
   }
 
-  cv::Mat dispToMeter(Mat distMap){
+  cv::Mat dispToMeter(cv::Mat distMap){
     distMap.convertTo(distMap, CV_16UC1);
     distMap *= 16.0*3.6; // fractional bits of StereoSGBM disparity maps
     distMap = (247.35*150)/distMap; // disparity map values to 'm'
@@ -140,13 +140,13 @@ float findsmallestX(std::vector<int> arr, int numberOfArrayElements, int stopNum
     return distMap;
   }
 
-  cv::Mat fovReduction(cv::Mat src_img){
+  void fovReduction(cv::Mat src_img, cv::Mat& dst_img){
     static double newAngle = atan2(CLEARANCE, CAMERARANGE);
     const double FOV_y = 45*M_PI/180;
     static int cutoffPixel = (src_img.rows-(round(double(src_img.rows)*(FOV_y-newAngle*2)/FOV_y)))/2;
 
     static cv::Rect crop(0, cutoffPixel, src_img.cols, src_img.rows-2*cutoffPixel);
     cv::Mat cropped = src_img(crop);
-
-    return cropped;
+    dst_img = cropped.clone();
+    return;
   }

@@ -50,6 +50,7 @@ int main(int argc, char** argv)
   unsigned              vel_flag            = 0;
   unsigned              alpha               = 360 / s; // Sector angle
 
+
   // Histogram grid setup
   static int histDimension = round((float)CAMERARANGE*2/RESOLUTION_M);
   if(histDimension%2 != 1)
@@ -57,6 +58,7 @@ int main(int argc, char** argv)
   hist_grid = cv::Mat::zeros(histDimension, histDimension, CV_8UC1);
   circle_mask = cv::Mat::zeros(histDimension, histDimension, CV_8UC1);
   circle(circle_mask, cv::Point((hist_grid.rows-1)/2, (hist_grid.cols-1)/2), CAMERARANGE*2, cv::Scalar(255), -1, 8, 0);
+
 
   //Services
   vfh_luts = nh.serviceClient<uav_nav::VFHLookUpTables>("uav_nav/vfh_luts");

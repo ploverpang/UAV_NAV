@@ -17,6 +17,7 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(DJIOSDK REQUIRED)
 find_package(OpenCV REQUIRED)
 
+
 roslaunch_add_file_check(launch)
 
 add_service_files(
@@ -51,10 +52,13 @@ target_link_libraries(sensor_feedback
   yaml-cpp
 )
 
+
 add_executable(depth_generation
   src/depth_generation.cc
   src/supporting_alg.cc
 )
+
+
 target_link_libraries(depth_generation
   ${OpenCV_LIBS}
   ${catkin_LIBRARIES}
