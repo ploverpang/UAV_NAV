@@ -33,7 +33,9 @@ int main(int argc, char** argv)
   private_nh_.param("t_low",       bin_hist_low,       1.f);
   private_nh_.param("r_enl",       radius_enlargement, 1.f);
   private_nh_.param("cost_params", cost_params,        std::vector<float>(cost_default,   cost_default+3));
-  //private_nh_.param("target",      target_xy,          std::vector<float>(target_default, target_default+2));
+  private_nh_.param("target",      target_xy,          std::vector<float>(target_default, target_default+2));
+
+  //ROS_INFO("%f %f %f", cost_params[0], cost_params[1], cost_params[2]);
 
   // Local variables
   std::vector<float>    beta;                          // Histogram grid cell angle from RCP
@@ -49,6 +51,7 @@ int main(int argc, char** argv)
   float                 lin_vel             = 0.0;     //
   unsigned              vel_flag            = 0;
   unsigned              alpha               = 360 / s; // Sector angle
+  static const float    max_rot_vel         = 1.0;     // Maximum rotational velocity
 
 
   // Histogram grid setup
@@ -56,6 +59,11 @@ int main(int argc, char** argv)
   if(histDimension%2 != 1)
     histDimension++;
   hist_grid = cv::Mat::zeros(histDimension, histDimension, CV_8UC1);
+  //hist_grid.at<unsigned char>
+  line(hist_grid, cv::Point(30, 20), cv::Point(23, 10), cv::Scalar(255), 1, 4);
+  //line(hist_grid, cv::Point(20, 40), cv::Point(40, 20), cv::Scalar(255), 1, 4);
+  line(hist_grid, cv::Point(10, 20), cv::Point(20, 30), cv::Scalar(255), 1, 4);
+  line(hist_grid, cv::Point(23, 10), cv::Point(10, 20), cv::Scalar(255), 1, 4);
   circle_mask = cv::Mat::zeros(histDimension, histDimension, CV_8UC1);
   circle(circle_mask, cv::Point((hist_grid.rows-1)/2, (hist_grid.cols-1)/2), CAMERARANGE*2, cv::Scalar(255), -1, 8, 0);
 
@@ -74,24 +82,25 @@ int main(int argc, char** argv)
 
   // Necessary functions before entering ros spin
   getLUTs(histDimension, radius_enlargement, &beta, &dist_scaled, &enlarge);
-  target_xy.push_back(10);
-  target_xy.push_back(5);
+
   while(ros::ok())
   {
-    //private_nh_.param("target", target_xy, std::vector<float>(target_default, target_default+2));
+    private_nh_.getParam("target", target_xy);
+    //ROS_INFO("%f %f", target_xy[0], target_xy[1]);
 
     getTargetDir(alpha, target_xy, &k_target);
     binaryHist(s, alpha, bin_hist_high, bin_hist_low, beta, dist_scaled, enlarge, &h);
-    maskedPolarHist(alpha, radius_enlargement, beta, h, &masked_hist);
+    maskedPolarHist(alpha, radius_enlargement, max_rot_vel, beta, h, &masked_hist);
     findValleyBorders(masked_hist, &k_l, &k_r);
     findCandidateDirections(s, k_target, k_l, k_r, &c);
     calculateCost(s, alpha, k_target, c, cost_params, masked_hist, &k_d, &vel_flag);
     ctrlVelCmd(target_xy, &vel_flag, &lin_vel);
-    publishCtrlCmd(k_d, lin_vel, alpha);
+    publishCtrlCmd(k_d, lin_vel, max_rot_vel, alpha);
 
     // Debug only
     cv::Mat show;
     resize(hist_grid, show, cv::Size(), 10, 10, cv::INTER_NEAREST);
+    show.at<unsigned char>(205,205) = 255;
     imshow("Histogram grid", show);
     cv::waitKey(1);
 
@@ -148,10 +157,10 @@ void getTargetDir(unsigned                 alpha,
                   float                    *k_target
                  )
 {
-  float target_angle = std::atan2(target[1]-local_position.point.y, target[0]-local_position.point.x);
+  float target_angle = wrapToPi(std::atan2(target[1]-local_position.point.y, target[0]-local_position.point.x) - C_PI/2);
   float angle_diff = wrapTo2Pi(target_angle-rpy.vector.z);
   *k_target = RAD2DEG(angle_diff)/alpha;
-  ROS_INFO("target: [%f, %f]\ntarget_angle: %f\nangle_diff: %f\nk_target: %f\n", target[0], target[1], target_angle, angle_diff, *k_target);
+  //ROS_INFO("k_target: %f\n", *k_target);
 }
 
 void fillHistogramGrid(sensor_msgs::LaserScan msg)
@@ -221,8 +230,8 @@ void shiftHistogramGrid()
   float displacement_x = local_position.point.x - current_pos_x;
   if(std::fabs(displacement_x) > (hysteresis*RESOLUTION_M/2))
   {
-    int offset_x = trunc(displacement_x / RESOLUTION_M);
-    cv::Mat trans_mat = (cv::Mat_<float>(2,3) << 1, 0, 0, 0, 1, offset_x);
+    int offset_x = -trunc(displacement_x / RESOLUTION_M);
+    cv::Mat trans_mat = (cv::Mat_<float>(2,3) << 1, 0, offset_x, 0, 1, 0);
     warpAffine(hist_grid, hist_grid, trans_mat, hist_grid.size());
     current_pos_x = current_pos_x + std::copysign((RESOLUTION_M*offset_x), displacement_x);
     cv::Mat masked;
@@ -233,8 +242,8 @@ void shiftHistogramGrid()
   float displacement_y = local_position.point.y - current_pos_y;
   if(std::fabs(displacement_y) > (hysteresis*RESOLUTION_M/2))
   {
-    int offset_y = -trunc(displacement_y / RESOLUTION_M);
-    cv::Mat trans_mat = (cv::Mat_<float>(2,3) << 1, 0, offset_y, 0, 1, 0);
+    int offset_y = trunc(displacement_y / RESOLUTION_M);
+    cv::Mat trans_mat = (cv::Mat_<float>(2,3) << 1, 0, 0, 0, 1, offset_y);
     warpAffine(hist_grid, hist_grid, trans_mat, hist_grid.size());
     current_pos_y = current_pos_y + std::copysign((RESOLUTION_M*offset_y), displacement_y);
     cv::Mat masked;
@@ -260,10 +269,13 @@ void binaryHist(unsigned                 s,
     {
       unsigned index = j+(i*hist_grid.cols);
       float magnitude = pow((float)hist_grid.at<unsigned char>(i, j)/255.0, 2) * dist_scaled[index];
-      for(int k = 0; k < s; ++k)
+      if(magnitude > 0)
       {
-        if(isBetweenRad(wrapTo2Pi(beta[index])-enlarge[index], wrapTo2Pi(beta[index])+enlarge[index], k*DEG2RAD(alpha)))
-          polar[k] += magnitude;
+        for(int k = 0; k < s; ++k)
+        {
+          if(isBetweenRad(wrapTo2Pi(beta[index])-enlarge[index], wrapTo2Pi(beta[index])+enlarge[index], k*DEG2RAD(alpha)))
+            polar[k] += magnitude;
+        }
       }
     }
   }
@@ -285,16 +297,16 @@ void binaryHist(unsigned                 s,
 
 void maskedPolarHist(unsigned                    alpha,
                      float                       r_enl,
+                     float                       max_rot_vel, // Maximum rotational velocity
                      const std::vector<float>    &beta,
                      const std::vector<unsigned> &h,
                      std::vector<unsigned>       *masked_hist
                     )
 {
-  static const float t_obst      = 1.0;       // Obstacle threshold
-  static const float max_rot_vel = 1.0;       // Maximum rotational velocity
+  static const float t_obst      = 40.0;      // Obstacle threshold
 
   float yaw  = rpy.vector.z;                  // Heading of drone in radians
-  float r    = velocity.vector.x/max_rot_vel; // Minimum steering radius assuming it is the same for both directions
+  float r    = sqrt(pow(velocity.vector.x,2)+pow(velocity.vector.y,2))/max_rot_vel; // Minimum steering radius assuming it is the same for both directions
   float back = wrapToPi(yaw-C_PI);            // Opposite direction of heading
   float dxr  = r * sin(yaw);                  // X coord. of right trajectory circle
   float dyr  = r * cos(yaw);                  // Y coord. of right trajectory circle
@@ -366,6 +378,12 @@ void findValleyBorders(const std::vector<unsigned> &masked_hist,
     k_r->push_back(k_r->front());
     k_r->erase(k_r->begin());
   }
+
+  /*for(auto &l : *k_l)
+    ROS_INFO("L%i ", l);
+  for(auto &r : *k_r)
+    ROS_INFO("R%i ", r);
+  ROS_INFO("\n\n");*/
 }
 
 void findCandidateDirections(unsigned                 s,
@@ -376,7 +394,7 @@ void findCandidateDirections(unsigned                 s,
                             )
 {
   c->clear();
-  static const unsigned s_max = 16; // Min number of sectors for a wide valley
+  static const unsigned s_max = 8; // Min number of sectors for a wide valley
 
   for(unsigned i = 0; i < k_l.size(); ++i)
   {
@@ -423,6 +441,11 @@ void findCandidateDirections(unsigned                 s,
       }
     }
   }
+
+  ROS_INFO("c: ");
+  for(auto &e : *c)
+    ROS_INFO("%f ", e);
+  ROS_INFO("\n\n");
 }
 
 void calculateCost(unsigned                    s,
@@ -468,6 +491,9 @@ void calculateCost(unsigned                    s,
           *k_d = prev_k_d;
           *vel_flag = 2;
           break;
+        default:
+          *k_d = prev_k_d;
+          break;
       }
     }
   }
@@ -498,24 +524,34 @@ void ctrlVelCmd(const std::vector<float> &target_xy,
       break;
     case 2:
       *lin_vel = 0;
-      *vel_flag = 0;
+      if(sqrt(pow(velocity.vector.x,2)+pow(velocity.vector.y,2)) < 0.1)
+        *vel_flag = 0;
       break;
   }
 }
 
 void publishCtrlCmd(float    k_d,
                     float    lin_vel,
+                    float    max_rot_vel,
                     unsigned alpha
                    )
 {
+  ROS_INFO("k_d: %f\n", k_d);
+  float yawrate;
+  if(abs(k_target-k_d) < 0.0001)
+    yawrate = wrapToPi(DEG2RAD(k_target * alpha));
+  else
+    yawrate = wrapToPi(DEG2RAD(k_d * alpha)-rpy.vector.z);
+  //ROS_INFO("yaw: %f\tyawrate: %f\n\n", RAD2DEG(rpy.vector.z), RAD2DEG(yawrate));
+  if(yawrate > max_rot_vel) {
+    yawrate = std::copysign(yawrate, max_rot_vel);
+  }
+
   geometry_msgs::TwistStamped vel_cmd;
   vel_cmd.header.stamp    = ros::Time::now();
   vel_cmd.header.frame_id = "vfh_vel_cmd";
-  //vel_cmd.twist.linear.x  = lin_vel;
-  vel_cmd.twist.linear.x  = 1;
-  ROS_INFO("target*alpha: %f\ndeg2rad: %f\nwrapToPi: %f", k_target * alpha, DEG2RAD(k_target * alpha), wrapToPi(DEG2RAD(k_target * alpha)));
-  vel_cmd.twist.angular.z = wrapToPi(DEG2RAD(k_target * alpha)-(C_PI/2));
-  //vel_cmd.twist.angular.z = 0;
+  vel_cmd.twist.linear.x  = lin_vel;
+  vel_cmd.twist.angular.z = yawrate;
   vel_cmd_pub.publish(vel_cmd);
 }
 
@@ -546,7 +582,7 @@ bool isBetweenRad(float start,
   end = wrapTo2Pi(end);
   mid = wrapTo2Pi(mid);
 
-  end = (end - start) < 0.0f ? end - start + (2*C_PI) : end - start;
+  end = (end - start) < 0.0f ? end - start + (2*C_PI) : end - start; // WrapTo2Pi
   mid = (mid - start) < 0.0f ? mid - start + (2*C_PI) : mid - start;
   return (mid < end);
 }

@@ -124,7 +124,7 @@ float findsmallestX(std::vector<int> arr, int numberOfArrayElements, int stopNum
         }
       }
     }
-    
+
     cv::Mat output(src_img.size(), src_img.type(), cv::Scalar(0));
     src_img.copyTo(output, mask);
     imshow("mask morh", mask);
