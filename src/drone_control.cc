@@ -34,7 +34,7 @@ int main(int argc, char** argv)
 
   // Publish the control signal
   ctrl_vel_cmd_pub = nh.advertise<sensor_msgs::Joy>("dji_sdk/flight_control_setpoint_generic", 1);
-  rpy_pub          = nh.advertise<geometry_msgs::Vector3Stamped>("uav_nav/roll_pitch_yaw",                 1);
+  rpy_pub          = nh.advertise<geometry_msgs::Vector3Stamped>("uav_nav/roll_pitch_yaw",     1);
 
   if(isM100() && setLocalPositionRef())
   {
