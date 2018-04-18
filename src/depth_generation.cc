@@ -6,16 +6,8 @@ ros::Publisher laser_scan_pub;
 
 cv::Mat left_img1(HEIGHT, WIDTH, CV_8UC1);
 cv::Mat right_img1(HEIGHT, WIDTH, CV_8UC1);
-cv::Mat frameBuffer_sgbm;
 
-
-// For StereoSGBM
-const int wsize =3;
-const int numDisp = 64;
-cv::Ptr<cv::StereoSGBM> sgbm  = cv::StereoSGBM::create(0,numDisp,wsize);
-
-//Other variables
-int imgFlag = 0;
+//Global variables
 std::string left_id, right_id;
 
 
@@ -32,7 +24,6 @@ void left_image_callback(const sensor_msgs::ImageConstPtr& left_img){
 
 	left_id = left_img->header.frame_id;
 	cv_ptr->image.convertTo(left_img1, CV_8UC1);
-	imgFlag++;
 }
 
 /* right greyscale image */
@@ -48,52 +39,66 @@ void right_image_callback(const sensor_msgs::ImageConstPtr& right_img){
 
 	right_id = right_img->header.frame_id;
 	cv_ptr->image.convertTo(right_img1, CV_8UC1);
-	imgFlag++;
 }
 
-cv::Mat CreateDepthImage(cv::Mat L_img, cv::Mat R_img){
+void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img){
 
-	if( L_img.empty() || R_img.empty() ){
+	if( L_img.empty() || R_img.empty() ) return;
+
+	// For StereoSGBM
+	const static int wsize =3;
+	const static int numDisp = 64;
+	static cv::Ptr<cv::StereoSGBM> sgbm  = cv::StereoSGBM::create(0,numDisp,wsize);
+	cv::Mat left_sgbm, masked_sgbm, out_img;
+
+	// Variables keeping track of previous frame and frameID
+	static std::string frame_ID_buffer;
+	static cv::Mat frameBuffer_sgbm;
+
+	// StereoSGBM parameter setup
+	sgbm->setP1(8*wsize*wsize);
+	sgbm->setP2(32*wsize*wsize);
+	sgbm->setPreFilterCap(21);
+	sgbm->setMode(cv::StereoSGBM::MODE_SGBM);
+	sgbm->compute( L_img, R_img, left_sgbm);
+
+	//Masking unused borders
+	int x_delta = (wsize-1)/2;
+	int y_delta = (wsize-1)/2;
+	int croppedWIDTH = WIDTH-numDisp-2*(x_delta);
+	int croppedHEIGHT = HEIGHT-2*(y_delta);
+	cv::Rect mask(numDisp + x_delta, y_delta, croppedWIDTH, croppedHEIGHT);
+	left_sgbm = left_sgbm(mask);
+
+	// Preparing disparity map for further processing
+	left_sgbm.convertTo(left_sgbm, CV_8UC1);
+	left_sgbm.setTo(0, left_sgbm==255);
+	fovReduction(left_sgbm, left_sgbm);
+
+	// Dispraity map processing
+	if (!frameBuffer_sgbm.empty()){
+		bool clearList = (frame_ID_buffer != left_id);
+		maskOutliers(left_sgbm, masked_sgbm, frameBuffer_sgbm, clearList, 1, 15);
+		legacyRoundMorph(masked_sgbm, 30, 5); // might not even be needed
+		cv::Mat float_mat;
+		dispToMeter(masked_sgbm, float_mat);
+		DepthProcessing(float_mat);
+		masked_sgbm.copyTo(dst_img);
 	}
-	else
-	{
-		cv::Mat left_sgbm, masked_sgbm, out_img;
-
-		// StereoSGBM
-		sgbm->setP1(8*wsize*wsize);
-		sgbm->setP2(32*wsize*wsize);
-		sgbm->setPreFilterCap(21);
-		sgbm->setMode(cv::StereoSGBM::MODE_SGBM);
-		sgbm->compute( L_img, R_img, left_sgbm);
-
-		//Masking unused borders
-		int x_delta = (wsize-1)/2;
-		int y_delta = (wsize-1)/2;
-		int croppedWIDTH = WIDTH-numDisp-2*(x_delta);
-		int croppedHEIGHT = HEIGHT-2*(y_delta);
-
-		cv::Rect mask(numDisp + x_delta, y_delta, croppedWIDTH, croppedHEIGHT);
-		left_sgbm = left_sgbm(mask);
-		left_sgbm.convertTo(left_sgbm, CV_8UC1);
-		left_sgbm.setTo(0, left_sgbm==255);
-		fovReduction(left_sgbm, left_sgbm);
-
-		if (!frameBuffer_sgbm.empty()){
-			maskOutliers(left_sgbm, masked_sgbm, frameBuffer_sgbm, 1, 15);  // fix frame_id issue
-			legacyRoundMorph(masked_sgbm, 15, 5); // might not even be needed
-			cv::Mat float_mat = dispToMeter(masked_sgbm);
-			DepthProcessing(float_mat);
-			out_img = masked_sgbm	;
-		}else{
-			left_sgbm = dispToMeter(left_sgbm);
-			DepthProcessing(left_sgbm);
-			out_img = left_sgbm;
-		}
-		left_sgbm.copyTo(frameBuffer_sgbm);
-
-		out_img.convertTo(out_img, CV_8UC1); //Make it viewer friendly
-		return out_img;
+	else{
+		legacyRoundMorph(left_sgbm, 30, 5); // might not even be needed
+		dispToMeter(left_sgbm, left_sgbm);
+		DepthProcessing(left_sgbm);
+		left_sgbm.copyTo(dst_img);
 	}
+	// Buffering
+	left_sgbm.copyTo(frameBuffer_sgbm);
+	frame_ID_buffer = left_id;
+
+	// Output
+	dst_img.convertTo(dst_img, CV_8UC1); //Make it viewer friendly
+
+	return;
 }
 
 void DepthProcessing(cv::Mat src_img){
@@ -104,11 +109,14 @@ void DepthProcessing(cv::Mat src_img){
 	static float slice_x = 5; // width of each slice in degrees
 	static float slice_y = 45; // has to be equal or lower than FOV_y
 
+	// Bounding max angle to FOV
 	if (slice_y > FOV_y){
 		slice_y = FOV_y;
 	}else if (slice_x > FOV_x){
 		slice_x = FOV_x;
 	}
+
+	// Computing pixel values corresponding to slice angles
 	const static int numSlices_x = floor(float(FOV_x/slice_x));
 	const static int numSlices_y = floor(float(FOV_y/slice_y));
 	const static int slicePixelWIDTH = floor(float(src_img.cols)/numSlices_x);
@@ -131,6 +139,7 @@ void DepthProcessing(cv::Mat src_img){
 		}
 	}
 
+	// ROS LaserScan message type output
 	sensor_msgs::LaserScan scans;
 	scans.header.frame_id = left_id;
 	scans.header.stamp = ros::Time::now();
@@ -159,14 +168,15 @@ int main(int argc, char** argv) {
 
 	laser_scan_pub = nh.advertise<sensor_msgs::LaserScan>("uav_nav/laser_scan_from_depthIMG", 1);
 
+	cv::Mat depthMap;
 	while(ros::ok()) {
-		if(imgFlag >= 2 && imgFlag%2==0 && left_id.compare(right_id) == 0) {  // Initial IMG rendering delays the main loop
-			cv::Mat depthMap = CreateDepthImage(left_img1, right_img1);
-			cv::imshow("To meter", depthMap);
+		if(!left_id.empty() && left_id.compare(right_id) == 0) {  // Initial IMG rendering may delay the main loop
+			CreateDepthImage(left_img1, right_img1, depthMap);
+			if (!depthMap.empty()){
+			cv::imshow("Depth image in meters (scaled by 10x)", depthMap);
 			cv::waitKey(1);
-			imgFlag = 0;
+			}
 		}
-
 		ros::spinOnce();
 	}
 

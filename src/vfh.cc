@@ -171,12 +171,12 @@ void fillHistogramGrid(sensor_msgs::LaserScan msg)
 
   if(camera_ID == "front")
     scalar = 0;
-  /*else if(camera_ID == "left")
+  else if(camera_ID == "left")
     scalar = 1;
   else if(camera_ID == "rear")
     scalar = 2;
   else if(camera_ID == "right")
-    scalar = 3;*/
+    scalar = 3;
   else
     return;
 
@@ -226,7 +226,7 @@ void shiftHistogramGrid()
   static float current_pos_y = local_position.point.y;
   static const float hysteresis = 1.2;
 
-  // Shift grid left, right, up, down TEST DIRECTIONS
+  // Shift grid left, right, up, down
   float displacement_x = local_position.point.x - current_pos_x;
   if(std::fabs(displacement_x) > (hysteresis*RESOLUTION_M/2))
   {

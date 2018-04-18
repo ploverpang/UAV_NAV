@@ -20,13 +20,14 @@
 #define CLEARANCE 2
 
 float findsmallestX(std::vector<int> arr, int numberOfArrayElements, int stopNumber);
-cv::Mat CreateDepthImage(cv::Mat L_img, cv::Mat R_img);
+void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img);
 void DepthProcessing(cv::Mat src_img);
 void show_histogram(std::string const& name, cv::Mat1b const& image);
-void maskOutliers(const cv::Mat& src_img, cv::Mat& dst_img, cv::Mat prevFrame, int nFrames, int diffThreshold);
+void maskOutliers(const cv::Mat& src_img, cv::Mat& dst_img, const cv::Mat& prevFrame,
+				  const bool& clearCMD, const int nFrames,  const int diffThreshold);
 void legacyRoundMorph(cv::Mat& src_img, int byNumber, int xy);
 void roundMorph(const cv::Mat& src_img, cv::Mat dst_img, int offset, int threshold);
-cv::Mat dispToMeter(cv::Mat src_img);
+void dispToMeter(cv::Mat src_img, cv::Mat& dst_img);
 void fovReduction(cv::Mat src_img, cv::Mat& dst_img);
 
 #endif // UAVNAV_DEPTHGENERATION_H_
