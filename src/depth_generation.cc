@@ -13,32 +13,26 @@ std::string left_id, right_id;
 
 /* left greyscale image */
 void left_image_callback(const sensor_msgs::ImageConstPtr& left_img){
-	cv_bridge::CvImagePtr cv_ptr;
-	try {
-		cv_ptr = cv_bridge::toCvCopy(left_img, sensor_msgs::image_encodings::MONO8);
+	uchar arr[HEIGHT*WIDTH];
+	int size = sizeof(arr)/sizeof(*arr);
+	for (int i = 0; i < size; i++){
+		arr[i] = left_img->data[i];	
 	}
-	catch (cv_bridge::Exception& e) {
-		ROS_ERROR("cv_bridge exception: %s", e.what());
-		return;
-	}
-
+	left_img1.data = arr;
+	
 	left_id = left_img->header.frame_id;
-	cv_ptr->image.convertTo(left_img1, CV_8UC1);
 }
 
 /* right greyscale image */
 void right_image_callback(const sensor_msgs::ImageConstPtr& right_img){
-	cv_bridge::CvImagePtr cv_ptr;
-	try {
-		cv_ptr = cv_bridge::toCvCopy(right_img, sensor_msgs::image_encodings::MONO8);
+	uchar arr[HEIGHT*WIDTH];
+	int size = sizeof(arr)/sizeof(*arr);
+	for (int i = 0; i < size; i++){
+		arr[i] = right_img->data[i];	
 	}
-	catch (cv_bridge::Exception& e) {
-		ROS_ERROR("cv_bridge exception: %s", e.what());
-		return;
-	}
+	right_img.data = arr;
 
 	right_id = right_img->header.frame_id;
-	cv_ptr->image.convertTo(right_img1, CV_8UC1);
 }
 
 void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img){
