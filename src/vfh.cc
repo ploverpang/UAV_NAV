@@ -96,14 +96,14 @@ int main(int argc, char** argv)
     calculateCost(s, alpha, k_target, c, cost_params, masked_hist, &k_d, &vel_flag);
     ctrlVelCmd(target_xy, &vel_flag, &lin_vel);
     publishCtrlCmd(k_d, lin_vel, max_rot_vel, alpha);
-
+/*
     // Debug only
     cv::Mat show;
     resize(hist_grid, show, cv::Size(), 10, 10, cv::INTER_NEAREST);
     show.at<unsigned char>(205,205) = 255;
-    imshow("Histogram grid", show);
-    cv::waitKey(1);
-
+    //imshow("Histogram grid", show);
+    //cv::waitKey(1);
+*/
     ros::spinOnce();
   }
 

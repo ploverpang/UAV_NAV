@@ -167,8 +167,8 @@ int main(int argc, char** argv) {
 		if(!left_id.empty() && left_id.compare(right_id) == 0) {  // Initial IMG rendering may delay the main loop
 			CreateDepthImage(left_img1, right_img1, depthMap);
 			if (!depthMap.empty()){
-			cv::imshow("Depth image in meters (scaled by 10x)", depthMap);
-			cv::waitKey(1);
+			//cv::imshow("Depth image in meters (scaled by 10x)", depthMap);
+			//cv::waitKey(1);
 			}
 		}
 		ros::spinOnce();
