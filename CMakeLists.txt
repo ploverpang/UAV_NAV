@@ -3,7 +3,7 @@ project(uav_nav)
 set(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
 
 find_package(catkin REQUIRED COMPONENTS
-  cv_bridge
+  
   geometry_msgs
   nav_msgs
   roscpp

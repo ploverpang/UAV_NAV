@@ -7,7 +7,6 @@
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/LaserScan.h> //obstacle distance & ultrasonic
 
-#include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
 
 #include "dji_sdk/dji_sdk.h"

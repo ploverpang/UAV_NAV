@@ -4,10 +4,7 @@
 #include <ros/ros.h>
 #include <queue>
 
-#include <opencv2/ximgproc/disparity_filter.hpp>
-#include <cv_bridge/cv_bridge.h>
-#include <opencv2/highgui.hpp>
-#include <opencv2/core.hpp>
+#include <opencv2/opencv.hpp>
 
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/Imu.h>

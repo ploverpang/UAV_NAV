@@ -7,9 +7,7 @@
 #include <geometry_msgs/Vector3Stamped.h>
 #include <sensor_msgs/LaserScan.h>
 
-#include <cv_bridge/cv_bridge.h>
-#include <opencv2/core.hpp>
-#include <opencv2/highgui.hpp>
+#include <opencv2/opencv.hpp>
 
 #include "uav_nav/VFHLookUpTables.h"
 #include "uav_nav/uav_nav.h"
