@@ -62,10 +62,7 @@ add_executable(depth_generation
 target_link_libraries(depth_generation
   ${OpenCV_LIBS}
   ${catkin_LIBRARIES}
-  DJI_guidance
-  usb-1.0
-  yaml-cpp
-)
+  )
 
 add_executable(drone_control src/drone_control.cc)
 target_link_libraries(drone_control
