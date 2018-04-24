@@ -30,7 +30,7 @@ void right_image_callback(const sensor_msgs::ImageConstPtr& right_img){
 	for (int i = 0; i < size; i++){
 		arr[i] = right_img->data[i];	
 	}
-	right_img.data = arr;
+	right_img1.data = arr;
 
 	right_id = right_img->header.frame_id;
 }

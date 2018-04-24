@@ -182,13 +182,18 @@ int sensorCb(int data_type, int data_len, char *content) // Callback to handle G
       if(show_info)
         imshow("left", g_greyscale_image_left);
 
-      // Publish left greyscale image
-      cv_bridge::CvImage left_8;
-      g_greyscale_image_left.copyTo(left_8.image);
-      left_8.header.frame_id = frame_id;
-      left_8.header.stamp    = ros::Time::now();
-      left_8.encoding        = sensor_msgs::image_encodings::MONO8;
-      left_image_pub.publish(left_8.toImageMsg());
+      // Publish left greyscale image  	
+    	sensor_msgs::Image left_8;
+    	left_8.header.stamp = ros::Time::now();
+    	left_8.header.frame_id = frame_id;
+    	left_8.height = g_greyscale_image_left.rows;
+    	left_8.width = g_greyscale_image_left.cols;
+    	left_8.encoding =  "mono8";
+    	left_8.is_bigendian = 0;
+    	left_8.step = 320;
+    	left_8.data.resize(HEIGHT*WIDTH);
+    	memcpy((char*)(&left_8.data[0]), g_greyscale_image_left.data, HEIGHT*WIDTH);
+    	left_image_pub.publish(left_8);
     }
 
     if(data->m_greyscale_image_right[camera_id])
@@ -200,12 +205,17 @@ int sensorCb(int data_type, int data_len, char *content) // Callback to handle G
         imshow("right", g_greyscale_image_right);
 
       // Publish right greyscale image
-      cv_bridge::CvImage right_8;
-      g_greyscale_image_right.copyTo(right_8.image);
-      right_8.header.frame_id = frame_id;
-      right_8.header.stamp    = ros::Time::now();
-      right_8.encoding        = sensor_msgs::image_encodings::MONO8;
-      right_image_pub.publish(right_8.toImageMsg());
+      sensor_msgs::Image right_8;
+    	right_8.header.stamp = ros::Time::now();
+    	right_8.header.frame_id = frame_id;
+    	right_8.height = g_greyscale_image_right.rows;
+    	right_8.width = g_greyscale_image_right.cols;
+    	right_8.encoding =  "mono8";
+    	right_8.is_bigendian = 0;
+    	right_8.step = 320;
+    	right_8.data.resize(HEIGHT*WIDTH);
+    	memcpy((char*)(&right_8.data[0]), g_greyscale_image_right.data, HEIGHT*WIDTH);
+    	right_image_pub.publish(right_8);
     }
 
     cv::waitKey(1);
