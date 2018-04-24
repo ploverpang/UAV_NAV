@@ -116,7 +116,7 @@ void DepthProcessing(cv::Mat src_img){
 	const static int slicePixelWIDTH = floor(float(src_img.cols)/numSlices_x);
 	const static int slicePixelHEIGHT = floor(float(src_img.rows)/numSlices_y);
 
-	float depthGridValues[numSlices_x][numSlices_y][1] = {};
+	float depthGridValues[numSlices_x][numSlices_y][1];
 	for (int x_grid=0; x_grid<numSlices_x; x_grid++){
 		for (int y_grid=0; y_grid<numSlices_y; y_grid++){
 			float average = 0;
