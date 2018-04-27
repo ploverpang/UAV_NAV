@@ -9,7 +9,6 @@
 
 #include <opencv2/opencv.hpp>
 
-#include "dji_sdk/dji_sdk.h"
 #include "uav_nav/DJI_guidance.h"
 #include "uav_nav/DJI_utility.h"
 

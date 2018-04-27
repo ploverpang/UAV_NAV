@@ -18,8 +18,10 @@ void left_image_callback(const sensor_msgs::ImageConstPtr& left_img){
 	for (int i = 0; i < size; i++){
 		arr[i] = left_img->data[i];	
 	}
-	left_img1.data = arr;
-	
+	cv::Mat buffer(HEIGHT, WIDTH, CV_8UC1); // This avoids artifacts that appear when modifying global variables directly
+	buffer.data = arr;
+	buffer.copyTo(left_img1);
+
 	left_id = left_img->header.frame_id;
 }
 
@@ -30,7 +32,9 @@ void right_image_callback(const sensor_msgs::ImageConstPtr& right_img){
 	for (int i = 0; i < size; i++){
 		arr[i] = right_img->data[i];	
 	}
-	right_img1.data = arr;
+	cv::Mat buffer(HEIGHT, WIDTH, CV_8UC1);
+	buffer.data = arr;
+	buffer.copyTo(right_img1);
 
 	right_id = right_img->header.frame_id;
 }
@@ -39,22 +43,38 @@ void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img){
 
 	if( L_img.empty() || R_img.empty() ) return;
 
-	// For StereoSGBM
-	const static int wsize =3;
-	const static int numDisp = 64;
-	static cv::Ptr<cv::StereoSGBM> sgbm  = cv::StereoSGBM::create(0,numDisp,wsize);
-	cv::Mat left_sgbm, masked_sgbm, out_img;
+	// For Stereo Matcher
+	static int wsize =3;
+	static int numDisp = 64;
+	cv::Mat left_disp, masked_disp, out_img;
 
 	// Variables keeping track of previous frame and frameID
 	static std::string frame_ID_buffer;
 	static cv::Mat frameBuffer_sgbm;
 
+
+	#ifdef USE_GPU
+	if (wsize<5) wsize = 5;
+    cv::Ptr<cv::cuda::StereoBM> left_matcher = cv::cuda::createStereoBM(numDisp, wsize);
+    left_matcher->setPreFilterCap(21);
+	cv::cuda::GpuMat L_cuda, R_cuda;
+	L_cuda.upload(L_img);
+	R_cuda.upload(R_img);
+	cv::cuda::GpuMat disp_cuda(L_img.size(), CV_8UC1);
+	left_matcher->compute( L_cuda, R_cuda, disp_cuda);
+	disp_cuda.download(left_disp);
+	left_disp.convertTo(left_disp, CV_16UC1, 16); // cuda StereoBM returns an 8 bit image, while the cpu implementation returns a 16 bit deep disparity
+
+    #else
+	cv::Ptr<cv::StereoSGBM> left_matcher  = cv::StereoSGBM::create(0,numDisp,wsize);
 	// StereoSGBM parameter setup
-	sgbm->setP1(8*wsize*wsize);
-	sgbm->setP2(32*wsize*wsize);
-	sgbm->setPreFilterCap(21);
-	sgbm->setMode(cv::StereoSGBM::MODE_SGBM);
-	sgbm->compute( L_img, R_img, left_sgbm);
+	left_matcher->setP1(8*wsize*wsize);
+	left_matcher->setP2(32*wsize*wsize);
+	left_matcher->setMode(cv::StereoSGBM::MODE_SGBM);
+   	left_matcher->setPreFilterCap(21);
+	left_matcher->compute( L_img, R_img, left_disp);
+	#endif
+
 
 	//Masking unused borders
 	int x_delta = (wsize-1)/2;
@@ -62,31 +82,31 @@ void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img){
 	int croppedWIDTH = WIDTH-numDisp-2*(x_delta);
 	int croppedHEIGHT = HEIGHT-2*(y_delta);
 	cv::Rect mask(numDisp + x_delta, y_delta, croppedWIDTH, croppedHEIGHT);
-	left_sgbm = left_sgbm(mask);
+	left_disp = left_disp(mask);
 
 	// Preparing disparity map for further processing
-	left_sgbm.convertTo(left_sgbm, CV_8UC1);
-	left_sgbm.setTo(0, left_sgbm==255);
-	fovReduction(left_sgbm, left_sgbm);
+	left_disp.convertTo(left_disp, CV_8UC1);
+	left_disp.setTo(0, left_disp==255);
+	fovReduction(left_disp, left_disp);
 
 	// Dispraity map processing
 	if (!frameBuffer_sgbm.empty()){
 		bool clearList = (frame_ID_buffer != left_id);
-		maskOutliers(left_sgbm, masked_sgbm, frameBuffer_sgbm, clearList, 1, 15);
-		legacyRoundMorph(masked_sgbm, 30, 5); // might not even be needed
+		maskOutliers(left_disp, masked_disp, frameBuffer_sgbm, clearList, 1, 15);
+		legacyRoundMorph(masked_disp, 30, 5); // might not even be needed
 		cv::Mat float_mat;
-		dispToMeter(masked_sgbm, float_mat);
+		dispToMeter(masked_disp, float_mat);
 		DepthProcessing(float_mat);
-		masked_sgbm.copyTo(dst_img);
+		masked_disp.copyTo(dst_img);
 	}
 	else{
-		legacyRoundMorph(left_sgbm, 30, 5); // might not even be needed
-		dispToMeter(left_sgbm, left_sgbm);
-		DepthProcessing(left_sgbm);
-		left_sgbm.copyTo(dst_img);
+		legacyRoundMorph(left_disp, 30, 5); // might not even be needed
+		dispToMeter(left_disp, left_disp);
+		DepthProcessing(left_disp);
+		left_disp.copyTo(dst_img);
 	}
 	// Buffering
-	left_sgbm.copyTo(frameBuffer_sgbm);
+	left_disp.copyTo(frameBuffer_sgbm);
 	frame_ID_buffer = left_id;
 
 	// Output
@@ -163,13 +183,23 @@ int main(int argc, char** argv) {
 	laser_scan_pub = nh.advertise<sensor_msgs::LaserScan>("uav_nav/laser_scan_from_depthIMG", 1);
 
 	cv::Mat depthMap;
+	ROS_INFO("Depth generation node running");
+	#ifdef USE_GPU
+		ROS_INFO("with CUDA support");
+	#else
+		ROS_INFO("without CUDA suport");
+	#endif
+
 	while(ros::ok()) {
+
 		if(!left_id.empty() && left_id.compare(right_id) == 0) {  // Initial IMG rendering may delay the main loop
 			CreateDepthImage(left_img1, right_img1, depthMap);
+			#ifndef USE_GPU
 			if (!depthMap.empty()){
-			//cv::imshow("Depth image in meters (scaled by 10x)", depthMap);
-			//cv::waitKey(1);
+			imshow("Depth image in meters (scaled by 10x)", depthMap);
+			cv::waitKey(1);
 			}
+			#endif
 		}
 		ros::spinOnce();
 	}

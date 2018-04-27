@@ -5,9 +5,12 @@
 #include <queue>
 
 #include <opencv2/opencv.hpp>
+#ifdef USE_GPU
+#include <opencv2/core/cuda.hpp>
+#include <opencv2/cudastereo.hpp>
+#endif
 
 #include <sensor_msgs/Image.h>
-#include <sensor_msgs/Imu.h>
 #include <sensor_msgs/LaserScan.h> //obstacle distance && ultrasonic
 
 #include "uav_nav/uav_nav.h"
@@ -15,6 +18,7 @@
 #define CAMERAFOV_X 60
 #define CAMERAFOV_Y 56
 #define CLEARANCE 2
+
 
 float findsmallestX(std::vector<int> arr, int numberOfArrayElements, int stopNumber);
 void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img);

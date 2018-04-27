@@ -89,7 +89,7 @@ int main(int argc, char** argv)
   while(ros::ok())
   {
     g_event.wait_event();
-    private_nh_.param("show_debug_info", show_info, false);
+    private_nh_.param("show_debug_info", show_info, true);
 
     static ros::Time start_time = ros::Time::now();
     ros::Duration elapsed_time = ros::Time::now() - start_time;
