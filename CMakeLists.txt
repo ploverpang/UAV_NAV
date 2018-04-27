@@ -87,9 +87,9 @@ target_link_libraries(sensor_feedback
 )
 
 if(CUDA_FOUND)
-    message(STATUS "Found ${CUDA_VERSION} CUDA installed in the system, depth_generation node will be compiled with CUDA support")
+    message(STATUS "Found ${CUDA_VERSION} CUDA installed in the system, depth_generation and vfh node will be compiled with CUDA support")
 else()
-    message(STATUS "Did not find CUDA in the system. CPU depth_generation is used")
+    message(STATUS "Did not find CUDA in the system. CPU is used for depth_generation and vfh")
 endif()
 
 add_executable(depth_generation

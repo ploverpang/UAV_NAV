@@ -59,14 +59,15 @@ int main(int argc, char** argv)
   if(histDimension%2 != 1)
     histDimension++;
   hist_grid = cv::Mat::zeros(histDimension, histDimension, CV_8UC1);
-  //hist_grid.at<unsigned char>
+  circle_mask = cv::Mat::zeros(histDimension, histDimension, CV_8UC1);
+  circle(circle_mask, cv::Point((hist_grid.rows-1)/2, (hist_grid.cols-1)/2), CAMERARANGE*2, cv::Scalar(255), -1, 8, 0);
+
+    // Virtual obstacles
   line(hist_grid, cv::Point(30, 20), cv::Point(23, 10), cv::Scalar(255), 1, 4);
   //line(hist_grid, cv::Point(20, 40), cv::Point(40, 20), cv::Scalar(255), 1, 4);
   line(hist_grid, cv::Point(10, 20), cv::Point(20, 30), cv::Scalar(255), 1, 4);
   line(hist_grid, cv::Point(23, 10), cv::Point(10, 20), cv::Scalar(255), 1, 4);
-  circle_mask = cv::Mat::zeros(histDimension, histDimension, CV_8UC1);
-  circle(circle_mask, cv::Point((hist_grid.rows-1)/2, (hist_grid.cols-1)/2), CAMERARANGE*2, cv::Scalar(255), -1, 8, 0);
-
+  
 
   //Services
   vfh_luts = nh.serviceClient<uav_nav::VFHLookUpTables>("uav_nav/vfh_luts");
@@ -96,14 +97,16 @@ int main(int argc, char** argv)
     calculateCost(s, alpha, k_target, c, cost_params, masked_hist, &k_d, &vel_flag);
     ctrlVelCmd(target_xy, &vel_flag, &lin_vel);
     publishCtrlCmd(k_d, lin_vel, max_rot_vel, alpha);
-/*
+
+    #ifndef USE_GPU
     // Debug only
     cv::Mat show;
     resize(hist_grid, show, cv::Size(), 10, 10, cv::INTER_NEAREST);
     show.at<unsigned char>(205,205) = 255;
-    //imshow("Histogram grid", show);
-    //cv::waitKey(1);
-*/
+    imshow("Histogram grid", show);
+    cv::waitKey(1);
+    #endif
+
     ros::spinOnce();
   }
 
@@ -232,7 +235,14 @@ void shiftHistogramGrid()
   {
     int offset_x = -trunc(displacement_x / RESOLUTION_M);
     cv::Mat trans_mat = (cv::Mat_<float>(2,3) << 1, 0, offset_x, 0, 1, 0);
+    #ifdef USE_GPU
+    cv::cuda::GpuMat hist_grid_cuda;
+    hist_grid_cuda.upload(hist_grid);
+    cv::cuda::warpAffine(hist_grid, hist_grid, trans_mat, hist_grid.size());
+    hist_grid_cuda.download(hist_grid);
+    #else
     warpAffine(hist_grid, hist_grid, trans_mat, hist_grid.size());
+    #endif
     current_pos_x = current_pos_x + std::copysign((RESOLUTION_M*offset_x), displacement_x);
     cv::Mat masked;
     hist_grid.copyTo(masked, circle_mask);
@@ -244,7 +254,14 @@ void shiftHistogramGrid()
   {
     int offset_y = trunc(displacement_y / RESOLUTION_M);
     cv::Mat trans_mat = (cv::Mat_<float>(2,3) << 1, 0, 0, 0, 1, offset_y);
+    #ifdef USE_GPU
+    cv::cuda::GpuMat hist_grid_cuda;
+    hist_grid_cuda.upload(hist_grid);
+    cv::cuda::warpAffine(hist_grid, hist_grid, trans_mat, hist_grid.size());
+    hist_grid_cuda.download(hist_grid);
+    #else
     warpAffine(hist_grid, hist_grid, trans_mat, hist_grid.size());
+    #endif
     current_pos_y = current_pos_y + std::copysign((RESOLUTION_M*offset_y), displacement_y);
     cv::Mat masked;
     hist_grid.copyTo(masked, circle_mask);

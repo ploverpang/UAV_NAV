@@ -9,7 +9,9 @@ cv::Mat right_img1(HEIGHT, WIDTH, CV_8UC1);
 
 //Global variables
 std::string left_id, right_id;
-
+// Que to only run img processing when new image arrives.
+// Can also be used to tweek parameters if que gets too big, and it reduces overhead when using gpu.
+int img_que = 0; 
 
 /* left greyscale image */
 void left_image_callback(const sensor_msgs::ImageConstPtr& left_img){
@@ -23,6 +25,7 @@ void left_image_callback(const sensor_msgs::ImageConstPtr& left_img){
 	buffer.copyTo(left_img1);
 
 	left_id = left_img->header.frame_id;
+	img_que++;
 }
 
 /* right greyscale image */
@@ -92,7 +95,7 @@ void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img){
 	// Dispraity map processing
 	if (!frameBuffer_sgbm.empty()){
 		bool clearList = (frame_ID_buffer != left_id);
-		maskOutliers(left_disp, masked_disp, frameBuffer_sgbm, clearList, 1, 15);
+		maskOutliers(left_disp, masked_disp, frameBuffer_sgbm, clearList, 2, 15);
 		legacyRoundMorph(masked_disp, 30, 5); // might not even be needed
 		cv::Mat float_mat;
 		dispToMeter(masked_disp, float_mat);
@@ -192,8 +195,9 @@ int main(int argc, char** argv) {
 
 	while(ros::ok()) {
 
-		if(!left_id.empty() && left_id.compare(right_id) == 0) {  // Initial IMG rendering may delay the main loop
+		if(!left_id.empty() && left_id.compare(right_id) == 0 && img_que != 0) {  // Initial IMG rendering may delay the main loop.
 			CreateDepthImage(left_img1, right_img1, depthMap);
+			img_que--;
 			#ifndef USE_GPU
 			if (!depthMap.empty()){
 			imshow("Depth image in meters (scaled by 10x)", depthMap);

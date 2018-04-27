@@ -8,6 +8,10 @@
 #include <sensor_msgs/LaserScan.h>
 
 #include <opencv2/opencv.hpp>
+#ifdef USE_GPU
+#include <opencv2/core/cuda.hpp>
+#include <opencv2/cudawarping.hpp>
+#endif
 
 #include "uav_nav/VFHLookUpTables.h"
 #include "uav_nav/uav_nav.h"
