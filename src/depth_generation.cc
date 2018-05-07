@@ -4,14 +4,13 @@ ros::Subscriber left_image_sub;
 ros::Subscriber right_image_sub;
 ros::Publisher laser_scan_pub;
 
+/* Global variables */
 cv::Mat left_img1(HEIGHT, WIDTH, CV_8UC1);
 cv::Mat right_img1(HEIGHT, WIDTH, CV_8UC1);
-
-//Global variables
 std::string left_id, right_id;
-// Que to only run img processing when new image arrives.
-// Can also be used to tweek parameters if que gets too big, and it reduces overhead when using gpu.
-int img_que = 0; 
+// Queue to only run img processing when new images arrive.
+// Can also be used to tweek parameters if queue gets too big, and it reduces overhead when using gpu.
+int img_queue = 0; 
 
 /* left greyscale image */
 void left_image_callback(const sensor_msgs::ImageConstPtr& left_img){
@@ -25,7 +24,7 @@ void left_image_callback(const sensor_msgs::ImageConstPtr& left_img){
 	buffer.copyTo(left_img1);
 
 	left_id = left_img->header.frame_id;
-	img_que++;
+	img_queue++;
 }
 
 /* right greyscale image */
@@ -42,7 +41,7 @@ void right_image_callback(const sensor_msgs::ImageConstPtr& right_img){
 	right_id = right_img->header.frame_id;
 }
 
-void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img){
+void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img, int dimensionality){
 
 	if( L_img.empty() || R_img.empty() ) return;
 
@@ -59,22 +58,27 @@ void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img){
 	#ifdef USE_GPU
 	if (wsize<5) wsize = 5;
     cv::Ptr<cv::cuda::StereoBM> left_matcher = cv::cuda::createStereoBM(numDisp, wsize);
-    left_matcher->setPreFilterCap(21);
+    //left_matcher->setPreFilterCap(21);
 	cv::cuda::GpuMat L_cuda, R_cuda;
 	L_cuda.upload(L_img);
 	R_cuda.upload(R_img);
 	cv::cuda::GpuMat disp_cuda(L_img.size(), CV_8UC1);
 	left_matcher->compute( L_cuda, R_cuda, disp_cuda);
 	disp_cuda.download(left_disp);
-	left_disp.convertTo(left_disp, CV_16UC1, 16); // cuda StereoBM returns an 8 bit image, while the cpu implementation returns a 16 bit deep disparity
-
+	// cuda StereoBM returns an 8 bit image, while the cpu implementation returns a 16 bit deep disparity
+	left_disp.convertTo(left_disp, CV_16UC1, 16); 
     #else
-	cv::Ptr<cv::StereoSGBM> left_matcher  = cv::StereoSGBM::create(0,numDisp,wsize);
+	/*cv::Ptr<cv::StereoSGBM> left_matcher  = cv::StereoSGBM::create(0,numDisp,wsize);
 	// StereoSGBM parameter setup
 	left_matcher->setP1(8*wsize*wsize);
 	left_matcher->setP2(32*wsize*wsize);
 	left_matcher->setMode(cv::StereoSGBM::MODE_SGBM);
    	left_matcher->setPreFilterCap(21);
+	left_matcher->compute( L_img, R_img, left_disp);*/
+
+	if (wsize<5) wsize = 5;
+	cv::Ptr<cv::StereoBM> left_matcher  = cv::StereoBM::create(numDisp,wsize);
+   	//left_matcher->setPreFilterCap(21);
 	left_matcher->compute( L_img, R_img, left_disp);
 	#endif
 
@@ -90,20 +94,24 @@ void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img){
 	// Preparing disparity map for further processing
 	left_disp.convertTo(left_disp, CV_8UC1);
 	left_disp.setTo(0, left_disp==255);
-	fovReduction(left_disp, left_disp);
+	if (dimensionality == ONE_DIMENSIONAL){
+		fovReduction(left_disp, left_disp);
+	}
 
 	// Dispraity map processing
 	if (!frameBuffer_sgbm.empty()){
 		bool clearList = (frame_ID_buffer != left_id);
-		maskOutliers(left_disp, masked_disp, frameBuffer_sgbm, clearList, 2, 15);
-		legacyRoundMorph(masked_disp, 30, 5); // might not even be needed
+		maskOutliers(left_disp, masked_disp, frameBuffer_sgbm, clearList, 1, 15);
+		//legacyRoundMorph(masked_disp, 10, 5); // might not even be needed
 		cv::Mat float_mat;
 		dispToMeter(masked_disp, float_mat);
 		DepthProcessing(float_mat);
-		masked_disp.copyTo(dst_img);
+		float_mat.copyTo(dst_img);
+		dst_img.setTo(0, dst_img > CAMERARANGE);
+		//roundMorph(dst_img, dst_img, 5, 1);
 	}
 	else{
-		legacyRoundMorph(left_disp, 30, 5); // might not even be needed
+		//legacyRoundMorph(left_disp, 30, 5); // might not even be needed
 		dispToMeter(left_disp, left_disp);
 		DepthProcessing(left_disp);
 		left_disp.copyTo(dst_img);
@@ -119,40 +127,58 @@ void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img){
 }
 
 void DepthProcessing(cv::Mat src_img){
+	/* To avoid confusion: everything refered to as 'x' in this method corresponds to the colomns of the matrix and 
+	   vice versa for 'y'. Therefore when reading/writing cv::Mat values the coordinates are swapped. However as the
+	   algorithm is dependent on the camera field of view, we will continue using that convention originating from 
+	   typical coordinate system representation. */ 
+
+	// INPUT VARIABLES
+	static float slice_x = 5; // width of each sector in degrees
+	static float slice_y = 50; // height of each sector in degrees - > defaults to max vertical FOV
 
 	// X and Y component of the field of view of the depth image
 	const static float FOV_x = float(src_img.cols/float(WIDTH))*float(CAMERAFOV_X);
 	const static float FOV_y = float(src_img.rows/float(HEIGHT))*CAMERAFOV_Y;
-	static float slice_x = 5; // width of each slice in degrees
-	static float slice_y = 45; // has to be equal or lower than FOV_y
 
 	// Bounding max angle to FOV
-	if (slice_y > FOV_y){
-		slice_y = FOV_y;
-	}else if (slice_x > FOV_x){
-		slice_x = FOV_x;
-	}
+	if (slice_y > FOV_y) slice_y = FOV_y;
+	if (slice_x > FOV_x) slice_x = FOV_x;
 
 	// Computing pixel values corresponding to slice angles
-	const static int numSlices_x = floor(float(FOV_x/slice_x));
-	const static int numSlices_y = floor(float(FOV_y/slice_y));
-	const static int slicePixelWIDTH = floor(float(src_img.cols)/numSlices_x);
-	const static int slicePixelHEIGHT = floor(float(src_img.rows)/numSlices_y);
+	const static int numSlices_x = floor(FOV_x/slice_x);
+	const static int numSlices_y = floor(FOV_y/slice_y);
+	const static int slicePixelWIDTH = floor(float(src_img.cols)/(FOV_x/slice_x));
+	const static int slicePixelHEIGHT = floor(float(src_img.rows)/(FOV_y/slice_y));
+	int pushByPixelAmmount_x = floor((src_img.cols-(slicePixelWIDTH*numSlices_x))/2);
+    int pushByPixelAmmount_y = floor((src_img.rows-(slicePixelHEIGHT*numSlices_y))/2);
 
+
+    src_img.convertTo(src_img, CV_32FC1);
 	float depthGridValues[numSlices_x][numSlices_y][1];
+	float gridConfidence[numSlices_x][numSlices_y][1];
 	for (int x_grid=0; x_grid<numSlices_x; x_grid++){
 		for (int y_grid=0; y_grid<numSlices_y; y_grid++){
 			float average = 0;
 			int counter = 0;
-			for (int x_pix=0; x_pix<slicePixelWIDTH; x_pix++){
+			int debug_counter = 0;
+			int adjustedPixelWIDTH = slicePixelWIDTH;
+			int adjustedPixelHEIGHT = slicePixelHEIGHT;
+			if (x_grid == 0 || x_grid == numSlices_x-1) adjustedPixelWIDTH += pushByPixelAmmount_x;
+			if (y_grid == 0 || y_grid == numSlices_y-1) adjustedPixelHEIGHT += pushByPixelAmmount_y;
+			for (int x_pix=0; x_pix<adjustedPixelWIDTH; x_pix++){
 				for (int y_pix=0; y_pix<slicePixelHEIGHT; y_pix++){
-					if (src_img.at<unsigned char>(y_grid*slicePixelHEIGHT+y_pix, x_grid*slicePixelWIDTH+x_pix) != 0 && src_img.at<unsigned char>(y_grid*slicePixelHEIGHT+y_pix, x_grid*slicePixelWIDTH+x_pix) < CAMERARANGE){
-						average += src_img.at<unsigned char>(y_grid*slicePixelHEIGHT+y_pix, x_grid*slicePixelWIDTH+x_pix);
+					debug_counter ++;
+					int x_coord = x_grid*slicePixelWIDTH + (x_grid != 0)*pushByPixelAmmount_x + x_pix;
+					int y_coord = y_grid*slicePixelHEIGHT + (y_grid != 0)*pushByPixelAmmount_y + y_pix;
+					float pixel_value = src_img.at<float>(y_coord, x_coord);
+					if (pixel_value != 0 && pixel_value < CAMERARANGE){
+						average += pixel_value;
 						counter++;
 					}
 				}
 			}
 			depthGridValues[x_grid][y_grid][0] = average/counter;
+			gridConfidence[x_grid][y_grid][0] = float(counter)/(adjustedPixelWIDTH*adjustedPixelHEIGHT);
 		}
 	}
 
@@ -165,11 +191,15 @@ void DepthProcessing(cv::Mat src_img){
 	scans.angle_increment = slice_x * (M_PI/180);
 	scans.range_min = 0;
 	scans.range_max= CAMERARANGE;
-	scans.ranges.resize(numSlices_x);
+	scans.ranges.resize(numSlices_x); // doesnt support multidimensional arrays
 	for (int i=0; i < numSlices_x; i++){
 		if (depthGridValues[i][0][0]<=scans.range_max){
 			scans.ranges[i] = depthGridValues[i][0][0];
 		}
+	}
+	scans.intensities.resize(numSlices_x); // doesnt support multidimensional arrays
+	for (int i=0; i < numSlices_x; i++){
+		scans.intensities[i] = gridConfidence[i][0][0];
 	}
 	laser_scan_pub.publish(scans);
 
@@ -195,12 +225,12 @@ int main(int argc, char** argv) {
 
 	while(ros::ok()) {
 
-		if(!left_id.empty() && left_id.compare(right_id) == 0 && img_que != 0) {  // Initial IMG rendering may delay the main loop.
-			CreateDepthImage(left_img1, right_img1, depthMap);
-			img_que--;
+		if(!left_id.empty() && left_id.compare(right_id) == 0 && img_queue != 0) {  // Initial IMG rendering may delay the main loop.
+			CreateDepthImage(left_img1, right_img1, depthMap, ONE_DIMENSIONAL);
+			img_queue--;
 			#ifndef USE_GPU
 			if (!depthMap.empty()){
-			imshow("Depth image in meters (scaled by 10x)", depthMap);
+			imshow("Depth image in meters (scaled by 10x)", depthMap*10);
 			cv::waitKey(1);
 			}
 			#endif

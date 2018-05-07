@@ -16,6 +16,7 @@ int main(int argc, char** argv)
   ros::init(argc, argv, "vfh");
   ros::NodeHandle nh;
   ros::NodeHandle private_nh_("~");
+  ros::Duration(20).sleep();
 
   // Parameter variables
   int                   s;                             // Number of angular sectors
@@ -241,7 +242,6 @@ void shiftHistogramGrid()
     cv::cuda::warpAffine(hist_grid, hist_grid, trans_mat, hist_grid.size());
     hist_grid_cuda.download(hist_grid);
     #else*/
-    int testvariable;
     warpAffine(hist_grid, hist_grid, trans_mat, hist_grid.size());
     //#endif
     current_pos_x = current_pos_x + std::copysign((RESOLUTION_M*offset_x), displacement_x);

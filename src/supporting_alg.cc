@@ -109,7 +109,9 @@ void legacyRoundMorph(cv::Mat& src_img, int byNumber, int xy){
   return;
 }
 
-void roundMorph(const cv::Mat& src_img, cv::Mat& dst_img, int offset, int threshold){
+void roundMorph(cv::Mat& src_img, cv::Mat& dst_img, int xy, int threshold){
+  if (xy<3 || xy%2 != 1) return;
+  int offset = (xy-1)/2;
   cv::Mat mask(src_img.size(), CV_8UC1, cv::Scalar(255));
   for (int i = 0; i < src_img.rows; ++i){
     for (int j = 0; j < src_img.cols; ++j){
@@ -118,8 +120,9 @@ void roundMorph(const cv::Mat& src_img, cv::Mat& dst_img, int offset, int thresh
         if (k >= 0 && k < src_img.rows){
           for (int l = j - offset; l <= j + offset; l++){
             if (l >= 0 && l < src_img.cols){
-              if (abs(src_img.at<unsigned char>(j,i) - src_img.at<unsigned char>(l,k)) > threshold){
-                marked = 1;
+              if (abs(src_img.at<unsigned char>(i,j) - src_img.at<unsigned char>(k,l)) > threshold){
+                if (src_img.at<unsigned char>(i,j) != 0 && src_img.at<unsigned char>(k,l) != 0){
+                marked = 1;}
               }
             }
           }
@@ -131,14 +134,16 @@ void roundMorph(const cv::Mat& src_img, cv::Mat& dst_img, int offset, int thresh
     }
   }
 
-  dst_img = Scalar(0);
-  src_img.copyTo(dst_img, mask);
-  imshow("Symmetric rounded morph mask", mask);
+  cv::Mat zeros = cv::Mat::zeros(src_img.size(), src_img.type());
+  src_img.copyTo(zeros, mask);
+  cv::Mat element = getStructuringElement(MORPH_RECT, Size(xy, xy));
+  morphologyEx(zeros, dst_img, MORPH_CLOSE, element);
+  //imshow("Symmetric rounded morph mask", mask);
   return;
 }
 
 void dispToMeter(cv::Mat src_img, cv::Mat& dst_img){
-  src_img.convertTo(src_img, CV_16UC1);
+  src_img.convertTo(src_img, CV_32FC1);
   src_img *= 16.0*3.6; // fractional bits of StereoSGBM disparity maps
   src_img = (247.35*150)/src_img; // disparity map values to 'm'
   src_img.copyTo(dst_img);
