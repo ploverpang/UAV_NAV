@@ -241,6 +241,7 @@ void shiftHistogramGrid()
     cv::cuda::warpAffine(hist_grid, hist_grid, trans_mat, hist_grid.size());
     hist_grid_cuda.download(hist_grid);
     #else*/
+    int testvariable;
     warpAffine(hist_grid, hist_grid, trans_mat, hist_grid.size());
     //#endif
     current_pos_x = current_pos_x + std::copysign((RESOLUTION_M*offset_x), displacement_x);
