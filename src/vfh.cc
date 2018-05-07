@@ -235,14 +235,14 @@ void shiftHistogramGrid()
   {
     int offset_x = -trunc(displacement_x / RESOLUTION_M);
     cv::Mat trans_mat = (cv::Mat_<float>(2,3) << 1, 0, offset_x, 0, 1, 0);
-    #ifdef USE_GPU
+    /*#ifdef USE_GPU
     cv::cuda::GpuMat hist_grid_cuda;
     hist_grid_cuda.upload(hist_grid);
     cv::cuda::warpAffine(hist_grid, hist_grid, trans_mat, hist_grid.size());
     hist_grid_cuda.download(hist_grid);
-    #else
+    #else*/
     warpAffine(hist_grid, hist_grid, trans_mat, hist_grid.size());
-    #endif
+    //#endif
     current_pos_x = current_pos_x + std::copysign((RESOLUTION_M*offset_x), displacement_x);
     cv::Mat masked;
     hist_grid.copyTo(masked, circle_mask);
@@ -254,14 +254,14 @@ void shiftHistogramGrid()
   {
     int offset_y = trunc(displacement_y / RESOLUTION_M);
     cv::Mat trans_mat = (cv::Mat_<float>(2,3) << 1, 0, 0, 0, 1, offset_y);
-    #ifdef USE_GPU
+    /*#ifdef USE_GPU
     cv::cuda::GpuMat hist_grid_cuda;
     hist_grid_cuda.upload(hist_grid);
     cv::cuda::warpAffine(hist_grid, hist_grid, trans_mat, hist_grid.size());
     hist_grid_cuda.download(hist_grid);
-    #else
+    #else*/
     warpAffine(hist_grid, hist_grid, trans_mat, hist_grid.size());
-    #endif
+    //#endif
     current_pos_y = current_pos_y + std::copysign((RESOLUTION_M*offset_y), displacement_y);
     cv::Mat masked;
     hist_grid.copyTo(masked, circle_mask);
