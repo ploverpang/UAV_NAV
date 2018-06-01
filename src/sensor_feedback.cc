@@ -7,25 +7,22 @@ ros::Publisher                obstacle_distance_pub;
 ros::Publisher                ultrasonic_pub;
 geometry_msgs::Vector3Stamped rpy;
 
-bool         show_info;                             // Show debug information
-double       angle                       = 0;       // Angle by which the image is rotated (based on IMU)
-double       t_y                         = 0;       // Number of pixels by which the image is translated
-uint8_t      camera_select               = 0;
-std::string  frame_id                    = "front"; // Indicates which sensor's image is published
-e_vbus_index camera_id                   = e_vbus1; // API index to select sensor
+bool         show_info; // Show debug information
+e_vbus_index camera_ids[3] = {e_vbus1, e_vbus2, e_vbus4};
 DJI_lock     g_lock;
 DJI_event    g_event;
 cv::Mat      g_greyscale_image_left(HEIGHT, WIDTH, CV_8UC1);
 cv::Mat      g_greyscale_image_right(HEIGHT, WIDTH, CV_8UC1);
-cv::Mat      g_depth(HEIGHT,WIDTH,CV_16SC1);
-cv::Mat      depth8(HEIGHT, WIDTH, CV_8UC1);
 
 int main(int argc, char** argv)
 {
   // Initialize ROS
-  ros::init(argc, argv, "sensor_feedback");
+  ros::init(argc, argv, "sensor_feedback", ros::init_options::NoSigintHandler);
   ros::NodeHandle nh;
   ros::NodeHandle private_nh_("~");
+
+  // Custom SIGINT handler
+  signal(SIGINT, onShutdown);
 
   // Load parameters
   private_nh_.param("show_debug_info", show_info, false);
@@ -67,16 +64,6 @@ int main(int argc, char** argv)
   for(int i=0; i<CAMERA_NUM; i++)
     ROS_DEBUG("cu: %f, cv: %f, focal: %f, baseline: %f", cali[i].cu, cali[i].cv, cali[i].focal, cali[i].baseline);
 
-  // Select data
-  err_code = select_greyscale_image(camera_id, true); //Left
-  RETURN_IF_ERR(err_code);
-  err_code = select_greyscale_image(camera_id, false); //Right
-  RETURN_IF_ERR(err_code);
-  err_code = select_depth_image(camera_id);
-  RETURN_IF_ERR(err_code);
-  select_ultrasonic();
-  select_obstacle_distance();
-
   // Start data transfer
   ROS_DEBUG("Starting Guidance data transfer");
   err_code = set_sdk_event_handler(sensorCb);
@@ -84,80 +71,13 @@ int main(int argc, char** argv)
   err_code = start_transfer();
   RETURN_IF_ERR(err_code);
 
-  ros::Rate r(19); // Set loop frequency at 19Hz
 
   while(ros::ok())
   {
     g_event.wait_event();
-    private_nh_.param("show_debug_info", show_info, true);
-
-    static ros::Time start_time = ros::Time::now();
-    ros::Duration elapsed_time = ros::Time::now() - start_time;
-
-    if(elapsed_time > ros::Duration(1)) // Publish all sides once every second
-    {
-      // Stop transfer in order to select new sensor
-      err_code = stop_transfer();
-      RETURN_IF_ERR(err_code);
-      reset_config();
-
-      switch(camera_select)
-      {
-        case 0:
-          camera_id = e_vbus2;
-          frame_id = "right";
-          angle = rpy.vector.y;
-          t_y = rpy.vector.x*PIXEL_PER_ANGLE;
-          camera_select = 1;
-          break;
-        case 1:
-          camera_id = e_vbus3;
-          frame_id = "rear";
-          angle = -rpy.vector.x;
-          t_y = rpy.vector.y*PIXEL_PER_ANGLE;
-          camera_select = 2;
-          break;
-        case 2:
-          camera_id = e_vbus4;
-          frame_id = "left";
-          angle = -rpy.vector.y;
-          t_y = rpy.vector.x*PIXEL_PER_ANGLE;
-          camera_select = 3;
-          break;
-        case 3:
-          camera_id = e_vbus1;
-          frame_id = "front";
-          angle = rpy.vector.x;
-          t_y = rpy.vector.y*PIXEL_PER_ANGLE;
-          camera_select = 0;
-          start_time = ros::Time::now();
-          break;
-      }
-
-      // Select data
-      err_code = select_greyscale_image(camera_id, true); //Left
-      RETURN_IF_ERR(err_code);
-      err_code = select_greyscale_image(camera_id, false); //Right
-      RETURN_IF_ERR(err_code);
-      select_ultrasonic();
-      select_obstacle_distance();
-
-      // Start data transfer
-      err_code = start_transfer();
-      RETURN_IF_ERR(err_code);
-    }
-
+    private_nh_.param("show_debug_info", show_info, false);
     ros::spinOnce();
-    r.sleep();
   }
-
-  // Release data transfer
-  ROS_DEBUG("Stopping Guidance data transfer");
-  err_code = stop_transfer();
-  RETURN_IF_ERR(err_code);
-  sleep(1); // Wait for ACK packet from Guidance
-  err_code = release_transfer();
-  RETURN_IF_ERR(err_code);
 
   return 0;
 }
@@ -168,57 +88,90 @@ int sensorCb(int data_type, int data_len, char *content) // Callback to handle G
   static const cv::Point2f cen(WIDTH/2, HEIGHT/2);
 
   // Image data
-  if(e_image == data_type && NULL != content) {
+  if(e_image == data_type && NULL != content)
+  {
     image_data* data = (image_data*)content;
 
-    cv::Mat M_rot = getRotationMatrix2D(cen, -angle, 1);             // Rotation matrix based on IMU
-    cv::Mat M_trans = (cv::Mat_<double>(2,3) << 1, 0, 0, 0, 1, t_y); // Translation matrix based on IMU
-
-    if(data->m_greyscale_image_left[camera_id])
+    for(int i = 0; i < 3; ++i)
     {
-      memcpy(g_greyscale_image_left.data, data->m_greyscale_image_left[camera_id], WIDTH*HEIGHT);
-      warpAffine(g_greyscale_image_left, g_greyscale_image_left, M_rot, cv::Size(WIDTH, HEIGHT));
-      warpAffine(g_greyscale_image_left, g_greyscale_image_left, M_trans, cv::Size(WIDTH, HEIGHT));
-      if(show_info)
-        imshow("left", g_greyscale_image_left);
+      std::string frame_id = "unknown";
+      double angle = 0;                       // Angle by which the image is rotated (based on IMU)
+      double t_y = 0;                         // Number of pixels by which the image is translated
+      e_vbus_index camera_id = camera_ids[i]; // API index to select sensor
 
-      // Publish left greyscale image  	
-    	sensor_msgs::Image left_8;
-    	left_8.header.stamp = ros::Time::now();
-    	left_8.header.frame_id = frame_id;
-    	left_8.height = g_greyscale_image_left.rows;
-    	left_8.width = g_greyscale_image_left.cols;
-    	left_8.encoding =  "mono8";
-    	left_8.is_bigendian = 0;
-    	left_8.step = 320;
-    	left_8.data.resize(HEIGHT*WIDTH);
-    	memcpy((char*)(&left_8.data[0]), g_greyscale_image_left.data, HEIGHT*WIDTH);
-    	left_image_pub.publish(left_8);
+      switch(camera_id)
+      {
+        case e_vbus1:
+          frame_id = "front";
+          angle = rpy.vector.x;
+          t_y = rpy.vector.y*PIXEL_PER_ANGLE;
+          break;
+
+        case e_vbus2:
+          frame_id = "right";
+          angle = -rpy.vector.y;
+          t_y = rpy.vector.x*PIXEL_PER_ANGLE;
+          break;
+
+        case e_vbus4:
+          frame_id = "left";
+          angle = rpy.vector.y;
+          t_y = -rpy.vector.x*PIXEL_PER_ANGLE;
+          break;
+
+        default:
+          break;
+      }
+
+      cv::Mat M_rot = getRotationMatrix2D(cen, -angle, 1);             // Rotation matrix based on IMU
+      cv::Mat M_trans = (cv::Mat_<double>(2,3) << 1, 0, 0, 0, 1, t_y); // Translation matrix based on IMU
+
+      if(data->m_greyscale_image_left[camera_id])
+      {
+        memcpy(g_greyscale_image_left.data, data->m_greyscale_image_left[camera_id], WIDTH*HEIGHT);
+        warpAffine(g_greyscale_image_left, g_greyscale_image_left, M_rot, cv::Size(WIDTH, HEIGHT));
+        warpAffine(g_greyscale_image_left, g_greyscale_image_left, M_trans, cv::Size(WIDTH, HEIGHT));
+        if(show_info)
+          imshow("left", g_greyscale_image_left);
+
+        // Publish left greyscale image
+      	sensor_msgs::Image left_8;
+      	left_8.header.stamp = ros::Time::now();
+      	left_8.header.frame_id = frame_id;
+      	left_8.height = g_greyscale_image_left.rows;
+      	left_8.width = g_greyscale_image_left.cols;
+      	left_8.encoding =  "mono8";
+      	left_8.is_bigendian = 0;
+      	left_8.step = 320;
+      	left_8.data.resize(HEIGHT*WIDTH);
+      	memcpy((char*)(&left_8.data[0]), g_greyscale_image_left.data, HEIGHT*WIDTH);
+      	left_image_pub.publish(left_8);
+      }
+
+      if(data->m_greyscale_image_right[camera_id])
+      {
+        memcpy(g_greyscale_image_right.data, data->m_greyscale_image_right[camera_id], WIDTH*HEIGHT);
+        warpAffine(g_greyscale_image_right, g_greyscale_image_right, M_rot, cv::Size(WIDTH, HEIGHT));
+        warpAffine(g_greyscale_image_right, g_greyscale_image_right, M_trans, cv::Size(WIDTH, HEIGHT));
+        if(show_info)
+          imshow("right", g_greyscale_image_right);
+
+        // Publish right greyscale image
+        sensor_msgs::Image right_8;
+      	right_8.header.stamp = ros::Time::now();
+      	right_8.header.frame_id = frame_id;
+      	right_8.height = g_greyscale_image_right.rows;
+      	right_8.width = g_greyscale_image_right.cols;
+      	right_8.encoding =  "mono8";
+      	right_8.is_bigendian = 0;
+      	right_8.step = 320;
+      	right_8.data.resize(HEIGHT*WIDTH);
+      	memcpy((char*)(&right_8.data[0]), g_greyscale_image_right.data, HEIGHT*WIDTH);
+      	right_image_pub.publish(right_8);
+      }
+
+      //cv::waitKey(1);
     }
-
-    if(data->m_greyscale_image_right[camera_id])
-    {
-      memcpy(g_greyscale_image_right.data, data->m_greyscale_image_right[camera_id], WIDTH*HEIGHT);
-      warpAffine(g_greyscale_image_right, g_greyscale_image_right, M_rot, cv::Size(WIDTH, HEIGHT));
-      warpAffine(g_greyscale_image_right, g_greyscale_image_right, M_trans, cv::Size(WIDTH, HEIGHT));
-      if(show_info)
-        imshow("right", g_greyscale_image_right);
-
-      // Publish right greyscale image
-      sensor_msgs::Image right_8;
-    	right_8.header.stamp = ros::Time::now();
-    	right_8.header.frame_id = frame_id;
-    	right_8.height = g_greyscale_image_right.rows;
-    	right_8.width = g_greyscale_image_right.cols;
-    	right_8.encoding =  "mono8";
-    	right_8.is_bigendian = 0;
-    	right_8.step = 320;
-    	right_8.data.resize(HEIGHT*WIDTH);
-    	memcpy((char*)(&right_8.data[0]), g_greyscale_image_right.data, HEIGHT*WIDTH);
-    	right_image_pub.publish(right_8);
-    }
-
-    cv::waitKey(1);
   }
 
   // Obstacle distance
@@ -238,7 +191,7 @@ int sensorCb(int data_type, int data_len, char *content) // Callback to handle G
     // Publish obstacle distance
     sensor_msgs::LaserScan g_oa;
     g_oa.ranges.resize(CAMERA_NUM);
-    g_oa.header.frame_id = frame_id;
+    g_oa.header.frame_id = "guidance";
     g_oa.header.stamp    = ros::Time::now();
     for(int i = 0; i < CAMERA_NUM; ++i)
       g_oa.ranges[i] = 0.01f * oa->distance[i];
@@ -269,7 +222,7 @@ int sensorCb(int data_type, int data_len, char *content) // Callback to handle G
     sensor_msgs::LaserScan g_ul;
     g_ul.ranges.resize(CAMERA_NUM);
     g_ul.intensities.resize(CAMERA_NUM);
-    g_ul.header.frame_id = frame_id;
+    g_ul.header.frame_id = "guidance";
     g_ul.header.stamp    = ros::Time::now();
     for(int d = 0; d < CAMERA_NUM; ++d)
     {
@@ -292,7 +245,15 @@ void RPYCb(const geometry_msgs::Vector3Stamped::ConstPtr& msg)
   rpy.vector.x = RAD2DEG(msg->vector.x);
   rpy.vector.y = RAD2DEG(msg->vector.y);
   rpy.vector.z = RAD2DEG(msg->vector.z);
+}
 
-  angle = rpy.vector.x;
-  t_y = rpy.vector.y*PIXEL_PER_ANGLE;
+void onShutdown(int sig)
+{
+  // Release data transfer
+  ROS_DEBUG("Stopping Guidance data transfer");
+  stop_transfer();
+  sleep(1); // Wait for ACK packet from Guidance
+  release_transfer();
+
+  ros::shutdown();
 }

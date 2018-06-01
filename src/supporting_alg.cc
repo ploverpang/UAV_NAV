@@ -59,11 +59,15 @@ void show_histogram(std::string const& name, cv::Mat1b const& image){
   cv::imshow(name, hist_image);
 }
 
-void maskOutliers(const cv::Mat& src_img, cv::Mat& dst_img, const cv::Mat& prevFrame, const bool& clearCMD, const int nFrames, const int diffThreshold){
+void maskOutliers(const cv::Mat& src_img, cv::Mat& dst_img, const cv::Mat& prevFrame, const bool& clearCMD, const int nFrames, const float diffThreshold){
   static std::list<cv::Mat> maskBuffer;  // Container for stored masks;
   // If previous ID doesn't match current ID clear buffer and return
   if (clearCMD){
     maskBuffer.clear();
+    dst_img = src_img;
+    return;
+  }
+  if (nFrames == 0){
     dst_img = src_img;
     return;
   }
@@ -74,7 +78,7 @@ void maskOutliers(const cv::Mat& src_img, cv::Mat& dst_img, const cv::Mat& prevF
 
   for (int x_pix=0; x_pix<src_img.cols; x_pix++){
     for (int y_pix=0; y_pix<src_img.rows; y_pix++){
-      if (abs(src_img.at<unsigned char>(y_pix, x_pix) - prevFrame.at<unsigned char>(y_pix, x_pix)) > diffThreshold){
+      if (abs(src_img.at<float>(y_pix, x_pix) - prevFrame.at<float>(y_pix, x_pix)) > diffThreshold){
         mask.at<unsigned char>(y_pix, x_pix) = 255;
       }
     }
@@ -89,10 +93,11 @@ void maskOutliers(const cv::Mat& src_img, cv::Mat& dst_img, const cv::Mat& prevF
     cv::Mat buf = *it;
     cv::accumulate(buf, maskSum);
   }
-  cv::threshold(maskSum, maskSum, 1, 255, 1);
   maskSum.convertTo(maskSum, CV_8UC1);
+  cv::threshold(maskSum, maskSum, 1, 255, 1);
   src_img.copyTo(zeros,maskSum);
   zeros.copyTo(dst_img);
+
   return;
 }
 
@@ -151,10 +156,10 @@ void dispToMeter(cv::Mat src_img, cv::Mat& dst_img){
 }
 
 void fovReduction(cv::Mat src_img, cv::Mat& dst_img){
-  static double newAngle = atan2(CLEARANCE, CAMERARANGE);
-  const double FOV_y = 45*M_PI/180;
-  static int cutoffPixel = (src_img.rows-(round(double(src_img.rows)*(FOV_y-newAngle*2)/FOV_y)))/2;
-
+  const double FOV_y = CAMERAFOV_Y*M_PI/180;
+  static double newAngle = atan2(CLEARANCE, CAMERARANGE*1.5); //1.5 might be useful
+  if (newAngle>FOV_y/2) newAngle = FOV_y/2;
+  static int cutoffPixel = (src_img.rows-(round(double(src_img.rows)*(newAngle*2)/FOV_y)))/2;
   static cv::Rect crop(0, cutoffPixel, src_img.cols, src_img.rows-2*cutoffPixel);
   cv::Mat cropped = src_img(crop);
   dst_img = cropped.clone();

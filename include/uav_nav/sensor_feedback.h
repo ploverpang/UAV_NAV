@@ -1,6 +1,8 @@
 #ifndef UAVNAV_SENSORFEEDBACK_H_
 #define UAVNAV_SENSORFEEDBACK_H_
 
+#include <signal.h>
+
 #include <ros/ros.h>
 #include <tf/tf.h>
 #include <geometry_msgs/Vector3Stamped.h>
@@ -52,5 +54,6 @@ std::ostream& operator<<(std::ostream& out, const e_sdk_err_code value) {
 
 int sensorCb(int data_type, int data_len, char *content);
 void RPYCb(const geometry_msgs::Vector3Stamped::ConstPtr& msg);
+void onShutdown(int sig);
 
 #endif // UAVNAV_SENSORFEEDBACK_H_

@@ -1,7 +1,7 @@
 #ifndef UAVNAV_UAVNAV_H_
 #define UAVNAV_UAVNAV_H_
 
-#define CAMERARANGE 10
+#define CAMERARANGE 7
 #define RESOLUTION_M 0.5
 #define WIDTH 320
 #define HEIGHT 240

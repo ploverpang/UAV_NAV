@@ -3,7 +3,10 @@
   <rosparam command="load" file="$(find uav_nav)/config/uav_nav/uav_nav_params.yaml"/>
   <node name="drone_control" pkg="uav_nav" type="drone_control" output="screen"/>
   <node name="sensor_feedback" pkg="uav_nav" type="sensor_feedback" output="screen"/>
-  <node name="depth_gen" pkg="uav_nav" type="depth_generation" output="screen"/>
+  <node name="depth_gen_front" pkg="uav_nav" type="depth_generation_front" output="screen"/>
+  <node name="depth_gen_left" pkg="uav_nav" type="depth_generation_left" output="screen"/>
+  <node name="depth_gen_right" pkg="uav_nav" type="depth_generation_right" output="screen"/>
   <node name="vfh_service_server" pkg="uav_nav" type="vfh_server" output="screen"/>
   <node name="vfh_node" pkg="uav_nav" type="vfh" output="screen"/>
+  <!--node name="safety_interrupt" pkg="uav_nav" type="safety_interrupt" output="screen"/-->
 </launch>

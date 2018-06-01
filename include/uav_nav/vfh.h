@@ -15,6 +15,7 @@
 
 #include "uav_nav/VFHLookUpTables.h"
 #include "uav_nav/uav_nav.h"
+#include <uav_nav/Steering.h>
 
 // Callbacks
 void localPositionCb(const geometry_msgs::PointStamped::ConstPtr& msg);
@@ -33,7 +34,7 @@ void findValleyBorders(const std::vector<unsigned> &masked_hist, std::vector<int
 void findCandidateDirections(unsigned s, float k_target, const std::vector<int> &k_l, const std::vector<int> &k_r, std::vector<float> *c);
 void calculateCost(unsigned s, unsigned alpha, float k_target, const std::vector<float> &c, const std::vector<float> &mu, const std::vector<unsigned> &masked_hist, float *k_d, unsigned *vel_flag);
 void ctrlVelCmd(const std::vector<float> &target_xy, unsigned *vel_flag, float *lin_vel);
-void publishCtrlCmd(float k_d, float lin_vel, float max_rot_vel, unsigned alpha);
+void publishCtrlCmd(float k_d, float lin_vel, float max_rot_vel, unsigned alpha, float k_target);
 bool blocked(float xt, float yt, float xc, float yc, float r);
 float deltaC(float c1, float c2, unsigned s);
 bool isBetweenRad(float start, float end, float mid);

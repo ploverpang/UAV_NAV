@@ -24,11 +24,19 @@ add_service_files(
   VFHLookUpTables.srv
 )
 
-generate_messages(
-  DEPENDENCIES
+add_message_files(
+  FILES
+  Steering.msg
 )
 
-catkin_package()
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+)
+
+catkin_package(
+  CATKIN_DEPENDS message_runtime
+)
 
 message("System is: " ${CMAKE_SYSTEM_PROCESSOR})
 if (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
@@ -67,12 +75,12 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-#add_executable(safety_interrupt
-#  src/safety_interrupt.cc
-#)
-#target_link_libraries(safety_interrupt
-#  ${catkin_LIBRARIES}
-#)
+add_executable(safety_interrupt
+  src/safety_interrupt.cc
+)
+target_link_libraries(safety_interrupt
+  ${catkin_LIBRARIES}
+)
 
 add_executable(sensor_feedback
   src/sensor_feedback.cc
@@ -92,11 +100,27 @@ else()
     message(STATUS "Did not find CUDA in the system. CPU is used for depth_generation and vfh")
 endif()
 
-add_executable(depth_generation
-  src/depth_generation.cc
+add_executable(depth_generation_front
+  src/depth_generation_front.cc
   src/supporting_alg.cc
 )
-target_link_libraries(depth_generation
+target_link_libraries(depth_generation_front
+  ${OpenCV_LIBS}
+  ${catkin_LIBRARIES}
+  )
+add_executable(depth_generation_right
+  src/depth_generation_right.cc
+  src/supporting_alg.cc
+)
+target_link_libraries(depth_generation_right
+  ${OpenCV_LIBS}
+  ${catkin_LIBRARIES}
+  )
+add_executable(depth_generation_left
+  src/depth_generation_left.cc
+  src/supporting_alg.cc
+)
+target_link_libraries(depth_generation_left
   ${OpenCV_LIBS}
   ${catkin_LIBRARIES}
   )
@@ -111,8 +135,29 @@ target_link_libraries(vfh
   ${catkin_LIBRARIES}
   ${OpenCV_LIBS})
 
+add_executable(vfh_plot src/vfh_plot.cc)
+target_link_libraries(vfh_plot
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBS})
+
+add_executable(parameter_tuning
+  src/parameter.cc
+  src/supporting_alg.cc
+)
+target_link_libraries(parameter_tuning
+  ${OpenCV_LIBS}
+  ${catkin_LIBRARIES}
+)
+
+#add_executable(safety src/safety_interrupt.cc)
+#target_link_libraries(safety
+#  ${catkin_LIBRARIES}
+#  ${OpenCV_LIBS})
+
 add_executable(vfh_server src/vfh_services.cc)
-target_link_libraries(vfh_server ${catkin_LIBRARIES})
+target_link_libraries(vfh_server
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBS})
 add_dependencies(vfh_server uav_nav_gencpp)
 
 #install(DIRECTORY launch

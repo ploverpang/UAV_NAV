@@ -1,10 +1,10 @@
 vfh:
   s: 72
-  t_high: 1
-  t_low: 1
-  r_enl: 1
+  t_high: 20.5
+  t_low: 15
+  r_enl: 2
   cost_params: [5,2,2]
-  target: [10,5]
+  target: [20,0]
 
 sensor_feedback:
   show_debug_info: false
