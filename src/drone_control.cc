@@ -61,6 +61,10 @@ void FSM()
       break;
     }
 
+    case 4:
+      execCmd();
+      break;
+
     case 90:
       bool landed = monitoredLanding() ? obtainControl(false) : false;
       if(landed)
@@ -101,7 +105,6 @@ int main(int argc, char** argv)
   ros::Subscriber loc_pos_sub       = nh.subscribe("dji_sdk/local_position",       1, &localPositionCb);
   ros::Subscriber steering_dir_sub  = nh.subscribe("uav_nav/steering_dir",         1, &steeringDirCb);
   ros::Subscriber interrupt_pub     = nh.subscribe("uav_nav/signal_interrupt",     1, &interruptCb);
-  ros::Subscriber masked_speed_sub       = nh.subscribe("uav_nav/masked_speed",     1, &maskedSpeedCb);
 
   // Publishers
   ready_pub         = nh.advertise<std_msgs::Bool>("uav_nav/dc_ready", 1);
@@ -263,83 +266,31 @@ void interruptCb(const std_msgs::UInt8::ConstPtr& msg) {
   }
 }
 
-void maskedSpeedCb(const std_msgs::UInt8::ConstPtr& msg) {
-  switch (msg->data)
-  {
-    case 0:
-      ctrl_state = 1;
-      break;
-    case 1:
-      ctrl_state = 3;
-      break;
-  }
-}
-
 void steeringDirCb(const uav_nav::Steering::ConstPtr& msg)
 {
   steering_dir = *msg;
-
-  execCmd();
 }
 
+// Publishers
 void execCmd()
 {
   static const float max_vel       = 1.5;
   static const float target_radius = 3.0;
-  static const float max_rot_vel = 1.0;
   float lin_vel = 0.0;
 
-  float target_distance = sqrt(pow(steering_dir.target[0]-local_position.point.x, 2) +
-                               pow(steering_dir.target[1]-local_position.point.y, 2));
-  if(target_distance > target_radius)
+  if(steering_dir.target_dist > target_radius)
     lin_vel = max_vel;
   else if (target_distance > 1.5)
-    lin_vel = (target_distance/target_radius) * max_vel;
+    lin_vel = (steering_dir.target_dist/target_radius) * max_vel;
   else{
-    bool landed = monitoredLanding() ? obtainControl(false) : false;
-    if(landed)
-    {
-      ROS_INFO("Drone landed and control is released.\nShutting down drone_control...");
-    }
-    else
-    {
-      ROS_ERROR("Landing failed! Take over control manually.");
-    }
-
-    ros::shutdown();
+    //TODO LAND
   }
+  //TODO check if lin_vel needs to be halfed
 
+  float yawrate = std::fabs(steering_dir.steering_dir) > MAXROTVEL ?
+                  std::copysign(steering_dir.steering_dir, MAXROTVEL) :
+                  steering_dir.steering_dir;
 
-  /*switch (*vel_flag)
-  {
-    case 1:
-      *lin_vel *= 0.5;
-      break;
-    case 2:
-      *lin_vel = 0;
-      if(sqrt(pow(velocity.vector.x,2)+pow(velocity.vector.y,2)) < 0.1)
-        *vel_flag = 0;
-      break;
-  }*/
-
-
-  //float yawrate = wrapToPi(DEG2RAD(steering_dir.steering_dir * steering_dir.alpha));
-  float yawrate;
-  if(abs(steering_dir.k_target-steering_dir.steering_dir) < 0.0001)
-    yawrate = wrapToPi(DEG2RAD(steering_dir.k_target * steering_dir.alpha));
-  else
-    yawrate = wrapToPi(DEG2RAD(steering_dir.steering_dir * steering_dir.alpha)-loc_rpy.vector.z);
-  if(yawrate > max_rot_vel) {
-    yawrate = std::copysign(yawrate, max_rot_vel);
-  }
-
-  /*geometry_msgs::TwistStamped vel_cmd;
-  vel_cmd.header.stamp    = ros::Time::now();
-  vel_cmd.header.frame_id = "vfh_vel_cmd";
-  vel_cmd.twist.linear.x  = lin_vel;
-  vel_cmd.twist.linear.y  = target_reached;
-  vel_cmd.twist.angular.z = yawrate;
-  vel_cmd_pub.publish(vel_cmd);*/
 
   ROS_INFO("lin_vel: %f, yawrate: %f", lin_vel, yawrate);
 

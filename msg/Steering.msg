@@ -1,5 +1,4 @@
 std_msgs/Header header
-float32[] target
+bool reduce_velocity
+float32 target_dist
 float32 steering_dir
-uint8 alpha
-float32 k_target

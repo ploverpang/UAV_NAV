@@ -6,6 +6,7 @@
 #define WIDTH 320
 #define HEIGHT 240
 #define C_PI (double)3.141592653589793
+#define MAXROTVEL (float)1.0
 #define DEG2RAD(DEG) ((DEG) * ((C_PI) / (180.0)))
 #define RAD2DEG(RAD) ((RAD) * (180.0) / (C_PI))
 

@@ -4,7 +4,6 @@
 
 // Global variables
 ros::ServiceClient            vfh_luts;       // Service client
-ros::Publisher                vel_cmd_pub;    // Linear x velocity, and yaw rate
 ros::Publisher                steering_pub;   //
 ros::Publisher                masked_speed;   // Should we go at half speed?
 geometry_msgs::PointStamped   local_position; // Local position offset in FLU frame
@@ -13,27 +12,7 @@ geometry_msgs::Vector3Stamped velocity;       // Linear velocity
 cv::Mat                       hist_grid;      // Histogram grid 2D
 cv::Mat                       circle_mask;    // Mask used to create circular active window
 int                           target_reached = 0;
-bool            ready                = false;
-
-
-void publishSteeringDir(unsigned alpha, float k_d, std::vector<float> FLUtarget, float k_target)
-{
-  uav_nav::Steering steer;
-  steer.header.stamp = ros::Time::now();
-  steer.header.frame_id = "steering_dir";
-  steer.target = FLUtarget;
-  steer.steering_dir = k_d;
-  steer.alpha = alpha;
-  steer.k_target = k_target;
-
-  steering_pub.publish(steer);
-}
-
-void readyCb(const std_msgs::Bool::ConstPtr& msg)
-{
-  ready = msg->data;
-}
-
+bool                          ready          = false;
 
 int main(int argc, char** argv)
 {
@@ -43,10 +22,10 @@ int main(int argc, char** argv)
   ros::NodeHandle private_nh_("~");
 
   ros::Subscriber ready_sub = nh.subscribe("uav_nav/dc_ready", 1, &readyCb);
-  while(ros::ok() && !ready)
+  do()
   {
     ros::spinOnce();
-  }
+  } while(ros::ok() && !ready);
 
   // Parameter variables
   int                   s;                             // Number of angular sectors
@@ -57,11 +36,11 @@ int main(int argc, char** argv)
   std::vector<float>    target_xy;                     // Target for the drone
   static const float    cost_default[]      = {5,2,2}; // Default cost parameters
   static const float    target_default[]    = {0,0};   // Default target [x, y]
-  float 		t_obst;			      // Obstacle threshold
+  float 		            t_obst;			                   // Obstacle threshold
 
   // Load parameters
   private_nh_.param("/vfh/s",           s,                  72);
-  private_nh_.param("/vfh/t_obst",      t_obst,      60.f);
+  private_nh_.param("/vfh/t_obst",      t_obst,             60.f);
   private_nh_.param("/vfh/t_high",      bin_hist_high,      1.f);
   private_nh_.param("/vfh/t_low",       bin_hist_low,       1.f);
   private_nh_.param("/vfh/r_enl",       radius_enlargement, 1.f);
@@ -80,9 +59,8 @@ int main(int argc, char** argv)
   float                 k_target            = 0.0;     // Target direction
   float                 k_d                 = 0.0;     // Selected direction of motion
   float                 lin_vel             = 0.0;     //
-  unsigned              vel_flag            = 0;
   unsigned              alpha               = 360 / s; // Sector angle
-  static const float    max_rot_vel         = 1.0;     // Maximum rotational velocity
+  bool                  red_vel             = false;   //
 
 
   // Histogram grid setup
@@ -109,34 +87,25 @@ int main(int argc, char** argv)
   ros::Subscriber rpy_sub        = nh.subscribe("uav_nav/roll_pitch_yaw",           1, &RPYCb);
   ros::Subscriber laser_scan_sub = nh.subscribe("uav_nav/laser_scan_from_depthIMG", 3, &laserScanCb);
 
-  // Publishers
-  vel_cmd_pub = nh.advertise<geometry_msgs::TwistStamped>("uav_nav/vel_cmd", 1);
+  // Publisher
   steering_pub = nh.advertise<uav_nav::Steering>("uav_nav/steering_dir", 1);
 
-  // Necessary functions before entering ros spin
+  // Generate LUTs
   getLUTs(histDimension, radius_enlargement, &beta, &dist_scaled, &enlarge);
 
-  rpy.vector.z = -100.0;
-  while(rpy.vector.z == -100.0){
-  ros::spinOnce();
-  }
   std::vector<float> FLUtarget;
   FLUtarget.push_back(target_xy[0]*cos(rpy.vector.z+C_PI/2)-target_xy[1]*sin(rpy.vector.z+C_PI/2));
   FLUtarget.push_back(target_xy[0]*sin(rpy.vector.z+C_PI/2)+target_xy[1]*cos(rpy.vector.z+C_PI/2));
 
   while(ros::ok())
   {
-    private_nh_.getParam("/vfh/target", target_xy);
-
     getTargetDir(alpha, FLUtarget, &k_target);
     binaryHist(s, alpha, bin_hist_high, bin_hist_low, beta, dist_scaled, enlarge, &h);
-    maskedPolarHist(alpha, radius_enlargement, max_rot_vel, beta, h, &masked_hist, t_obst);
+    maskedPolarHist(alpha, radius_enlargement, MAXROTVEL, t_obst, beta, h, &red_vel, &masked_hist);
     findValleyBorders(masked_hist, &k_l, &k_r);
     findCandidateDirections(s, k_target, k_l, k_r, &c);
-    calculateCost(s, alpha, k_target, c, cost_params, masked_hist, &k_d, &vel_flag);
-    publishSteeringDir(alpha, k_d, FLUtarget, k_target);
-    ctrlVelCmd(FLUtarget, &vel_flag, &lin_vel);
-    publishCtrlCmd(k_d, lin_vel, max_rot_vel, alpha, k_target);
+    calculateCost(s, alpha, k_target, c, cost_params, masked_hist, &k_d);
+    publishSteeringDir(red_vel, alpha, k_d, FLUtarget, k_target);
 
     ros::spinOnce();
   }
@@ -145,6 +114,11 @@ int main(int argc, char** argv)
 }
 
 // Callbacks
+void readyCb(const std_msgs::Bool::ConstPtr& msg)
+{
+  ready = msg->data;
+}
+
 void localPositionCb(const geometry_msgs::PointStamped::ConstPtr& msg)
 {
   local_position = *msg;
@@ -342,66 +316,21 @@ void binaryHist(unsigned                 s,
   prev_h = *h;
 }
 
-void maskedPolarHistAtHalf(unsigned              alpha,
-                     float                       r_enl,
-                     float                       max_rot_vel, // Maximum rotational velocity
-                     const std::vector<float>    &beta,
-                     const std::vector<unsigned> &h,
-                     std::vector<unsigned>       *masked_hist,
-                     float                       t_obst
-                    )
-{
-  float yaw  = rpy.vector.z;                  // Heading of drone in radians
-  float r    = sqrt(pow(velocity.vector.x,2)+pow(velocity.vector.y,2))/(max_rot_vel*2); // Minimum steering radius assuming it is the same for both directions
-  float back = wrapToPi(yaw-C_PI);            // Opposite direction of heading
-  float dxr  = r * sin(yaw);                  // X coord. of right trajectory circle
-  float dyr  = r * cos(yaw);                  // Y coord. of right trajectory circle
-  float dxl  = -dxr;                          // X coord. of left trajectory circle
-  float dyl  = -dyr;                          // Y coord. of left trajectory circle
-  float th_r = back;                          // Right limit angle
-  float th_l = back;                          // Left limit angle
-
-  for(int i = 0; i < hist_grid.rows; ++i)
-  {
-    for(int j = 0; j < hist_grid.cols; ++j)
-    {
-      unsigned index = j+(i*hist_grid.cols);
-      if(hist_grid.at<unsigned char>(i, j) > t_obst)
-      {
-        if(isBetweenRad(th_r, yaw, beta[index]) && blocked(dxr, dyr, j, i, r+r_enl))
-          th_r = beta[index];
-        else if(isBetweenRad(yaw, th_l, beta[index]) && blocked(dxl, dyl, j, i, r+r_enl))
-          th_l = beta[index];
-      }
-    }
-  }
-
-  // Create masked polar histogram
-  masked_hist->clear();
-  for(int k = 0; k < h.size(); ++k)
-  {
-    if(h[k] == 0 && (isBetweenRad(th_r, yaw, DEG2RAD(alpha)*k) || isBetweenRad(yaw, th_l, DEG2RAD(alpha)*k)))
-      masked_hist->push_back(0);
-    else
-      masked_hist->push_back(1);
-  }
-  std_msgs::UInt8 speed;
-  speed.data = 1;
-  masked_speed.publish(speed);
-
-}
-
 void maskedPolarHist(unsigned                    alpha,
                      float                       r_enl,
                      float                       max_rot_vel, // Maximum rotational velocity
+                     float                       t_obst,
                      const std::vector<float>    &beta,
                      const std::vector<unsigned> &h,
-                     std::vector<unsigned>       *masked_hist,
-                     float                       t_obst
+                     bool                        *red_vel,
+                     std::vector<unsigned>       *masked_hist
                     )
 {
   float yaw  = rpy.vector.z;                  // Heading of drone in radians
-  float r    = sqrt(pow(velocity.vector.x,2)+pow(velocity.vector.y,2))/max_rot_vel; // Minimum steering radius assuming it is the same for both directions
+  float r    = sqrt(
+                pow(velocity.vector.x,2) +
+                pow(velocity.vector.y,2)
+                   ) / max_rot_vel;           // Minimum steering radius assuming it is the same for both directions
   float back = wrapToPi(yaw-C_PI);            // Opposite direction of heading
   float dxr  = r * sin(yaw);                  // X coord. of right trajectory circle
   float dyr  = r * cos(yaw);                  // Y coord. of right trajectory circle
@@ -409,6 +338,8 @@ void maskedPolarHist(unsigned                    alpha,
   float dyl  = -dyr;                          // Y coord. of left trajectory circle
   float th_r = back;                          // Right limit angle
   float th_l = back;                          // Left limit angle
+
+  *red_vel = false;
 
   for(int i = 0; i < hist_grid.rows; ++i)
   {
@@ -426,32 +357,53 @@ void maskedPolarHist(unsigned                    alpha,
   }
 
   // Create masked polar histogram
-  bool needHalfTry = true;
+  bool all_blocked = true;
   masked_hist->clear();
   for(int k = 0; k < h.size(); ++k)
   {
     if(h[k] == 0 && (isBetweenRad(th_r, yaw, DEG2RAD(alpha)*k) || isBetweenRad(yaw, th_l, DEG2RAD(alpha)*k))){
       masked_hist->push_back(0);
-      needHalfTry = false;
+      all_blocked = false;
     }
     else{
       masked_hist->push_back(1);
     }
   }
-  if (needHalfTry){
-    maskedPolarHistAtHalf(alpha,
-                     r_enl,
-                     max_rot_vel, // Maximum rotational velocity
-                     beta,
-                     h,
-                     masked_hist,
-                     t_obst
-                    );
-  }
-  else{ 
-    std_msgs::UInt8 speed;
-    speed.data = 0;
-    masked_speed.publish(speed);
+
+  if(all_blocked)
+  {
+    *red_vel = true;
+
+    r *= 0.5;
+    float th_r = back;                          // Right limit angle
+    float th_l = back;                          // Left limit angle
+
+    for(int i = 0; i < hist_grid.rows; ++i)
+    {
+      for(int j = 0; j < hist_grid.cols; ++j)
+      {
+        unsigned index = j+(i*hist_grid.cols);
+        if(hist_grid.at<unsigned char>(i, j) > t_obst)
+        {
+          if(isBetweenRad(th_r, yaw, beta[index]) && blocked(dxr, dyr, j, i, r+r_enl))
+            th_r = beta[index];
+          else if(isBetweenRad(yaw, th_l, beta[index]) && blocked(dxl, dyl, j, i, r+r_enl))
+            th_l = beta[index];
+        }
+      }
+    }
+
+    // Create masked polar histogram
+    masked_hist->clear();
+    for(int k = 0; k < h.size(); ++k)
+    {
+      if(h[k] == 0 && (isBetweenRad(th_r, yaw, DEG2RAD(alpha)*k) || isBetweenRad(yaw, th_l, DEG2RAD(alpha)*k))){
+        masked_hist->push_back(0);
+      }
+      else{
+        masked_hist->push_back(1);
+      }
+    }
   }
 }
 
@@ -557,8 +509,7 @@ void calculateCost(unsigned                    s,
                    const std::vector<float>    &c,
                    const std::vector<float>    &mu,
                    const std::vector<unsigned> &masked_hist,
-                   float                       *k_d,
-                   unsigned                    *vel_flag
+                   float                       *k_d
                   )
 {
   static float prev_k_d = 0.0; // Previous direction of motion
@@ -577,94 +528,38 @@ void calculateCost(unsigned                    s,
         g = tmp_g;
       }
     }
-    if(*vel_flag == 2) *vel_flag = 0;
   }
   else
   {
     if(masked_hist[0] == 0)
     {
-      if(*vel_flag == 2) *vel_flag = 0;
       *k_d = k_target;
     }
     else
     {
-      switch (*vel_flag)
-      {
-        case 0:
-          *k_d = prev_k_d;
-          *vel_flag = 1;
-          break;
-        case 1:
-          *k_d = prev_k_d;
-          *vel_flag = 2;
-          break;
-	case 2:
-	  break;
-        default:
-          *k_d = prev_k_d;
-          break;
-      }
+      *k_d = std::nan();
     }
   }
 
   prev_k_d = *k_d;
 }
 
-void ctrlVelCmd(const std::vector<float> &target_xy,
-                unsigned                 *vel_flag,
-                float                    *lin_vel
-               )
+void publishSteeringDir(bool red_vel, unsigned alpha, float k_d, float k_target, std::vector<float> FLUtarget)
 {
-  static const float max_vel       = 1.5;
-  static const float target_radius = 3.0;
-
-  float target_distance = sqrt(pow(target_xy[0]-local_position.point.x, 2)+pow(target_xy[1]-local_position.point.y, 2));
-  if(target_distance > target_radius)
-    *lin_vel = max_vel;
-  else if (target_distance > 1.5)
-    *lin_vel = (target_distance/target_radius) * max_vel;
-  else{
-    *lin_vel = 0;
-    target_reached = 1;
-  }
-
-
-  switch (*vel_flag)
-  {
-    case 1:
-      *lin_vel *= 0.5;
-      break;
-    case 2:
-      *lin_vel = 0;
-      //if(sqrt(pow(velocity.vector.x,2)+pow(velocity.vector.y,2)) < 0.1)
-       // *vel_flag = 0;
-      break;
-  }
-}
-
-void publishCtrlCmd(float    k_d,
-                    float    lin_vel,
-                    float    max_rot_vel,
-                    unsigned alpha,
-                    float    k_target
-                   )
-{
-  float yawrate;
-  if(abs(k_target-k_d) < 0.0001)
-    yawrate = wrapToPi(DEG2RAD(k_target * alpha));
+  uav_nav::Steering steer;
+  steer.header.stamp = ros::Time::now();
+  steer.header.frame_id = "steering_dir";
+  steer.reduce_velocity = red_vel;
+  steer.target_dist = sqrt(pow(FLUtarget[0]-local_position.point.x, 2) +
+                           pow(FLUtarget[1]-local_position.point.y, 2));
+  if(std::isnan(k_d))
+    steer.steering_dir = k_d;
+  else if(std::fabs(k_target-k_d) < 0.001)
+    steer.steering_dir = wrapToPi(DEG2RAD(k_d*alpha));
   else
-    yawrate = wrapToPi(DEG2RAD(k_d * alpha)-rpy.vector.z);
-  if(yawrate > max_rot_vel) {
-    yawrate = std::copysign(yawrate, max_rot_vel);
-  }
+    steer.steering_dir = wrapToPi(DEG2RAD(k_d*alpha)-rpy.vector.z);
 
-  geometry_msgs::TwistStamped vel_cmd;
-  vel_cmd.header.stamp    = ros::Time::now();
-  vel_cmd.header.frame_id = "vfh_vel_cmd";
-  vel_cmd.twist.linear.x  = lin_vel;
-  vel_cmd.twist.linear.y  = target_reached;
-  vel_cmd.twist.angular.z = yawrate;
-  vel_cmd_pub.publish(vel_cmd);
+  steering_pub.publish(steer);
 }
 
 bool blocked(float xt, // x coordinate of trajectory center
