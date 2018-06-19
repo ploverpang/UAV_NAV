@@ -10,7 +10,7 @@
 std_msgs::UInt8 interrupt_signal;
 ros::Publisher signal_interrupt;
 double threshold_sec = 0.5;
-float ultrasonic_threshold = 2;
+float ultrasonic_threshold;
 float ultrasonic_intensity = 1;
 bool safetyFlag = true;
 bool first = false;
@@ -87,6 +87,9 @@ int main(int argc, char** argv)
 {
 	ros::init(argc, argv, "safety_interrupt");
 	ros::NodeHandle nh;
+	ros::NodeHandle private_nh_("~");
+	
+	private_nh_.param("/safety/ultrasonic_threshold",      ultrasonic_threshold,             2.f);
 	ros::Duration(20.5).sleep();
 	vel_cmd_reset = ros::Time::now().toSec();
 	velocity_reset = ros::Time::now().toSec();
