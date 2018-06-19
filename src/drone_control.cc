@@ -280,7 +280,7 @@ void execCmd()
 
   if(steering_dir.target_dist > target_radius)
     lin_vel = max_vel;
-  else if (target_distance > 1.5)
+  else if (steering_dir.target_dist > 1.5)
     lin_vel = (steering_dir.target_dist/target_radius) * max_vel;
   else{
     //TODO LAND

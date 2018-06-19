@@ -22,7 +22,7 @@ int main(int argc, char** argv)
   ros::NodeHandle private_nh_("~");
 
   ros::Subscriber ready_sub = nh.subscribe("uav_nav/dc_ready", 1, &readyCb);
-  do()
+  do
   {
     ros::spinOnce();
   } while(ros::ok() && !ready);
@@ -537,7 +537,7 @@ void calculateCost(unsigned                    s,
     }
     else
     {
-      *k_d = std::nanf();
+      *k_d = std::nanf("");
     }
   }
 
