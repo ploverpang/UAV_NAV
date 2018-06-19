@@ -34,7 +34,7 @@ int main(int argc, char** argv)
   ros::init(argc, argv, "vfh");
   ros::NodeHandle nh;
   ros::NodeHandle private_nh_("~");
-  ros::Duration(20).sleep();
+  ros::Duration(35).sleep();
 
   // Parameter variables
   int                   s;                             // Number of angular sectors
@@ -79,7 +79,7 @@ int main(int argc, char** argv)
   circle_mask = cv::Mat::zeros(histDimension, histDimension, CV_8UC1);
   circle(circle_mask, cv::Point((hist_grid.rows-1)/2, (hist_grid.cols-1)/2), static_cast<int>(CAMERARANGE)*2*1.5, cv::Scalar(255), -1, 8, 0);
 
-    // Virtual obstacles
+  // Virtual obstacles
   //line(hist_grid, cv::Point(30, 20), cv::Point(23, 10), cv::Scalar(255), 1, 4);
   //line(hist_grid, cv::Point(20, 40), cv::Point(40, 20), cv::Scalar(255), 1, 4); //d
   //line(hist_grid, cv::Point(10, 20), cv::Point(20, 30), cv::Scalar(255), 1, 4);
@@ -295,7 +295,7 @@ void binaryHist(unsigned                 s,
                 std::vector<unsigned>    *h
                )
 {
-  float polar[s] = {0};
+  float polar[72] = {0};
   for(int i = 0; i < hist_grid.rows; ++i)
   {
     for(int j = 0; j < hist_grid.cols; ++j)
@@ -496,11 +496,15 @@ void calculateCost(unsigned                    s,
         g = tmp_g;
       }
     }
+    if(*vel_flag == 2) *vel_flag = 0;
   }
   else
   {
     if(masked_hist[0] == 0)
+    {
+      if(*vel_flag == 2) *vel_flag = 0;
       *k_d = k_target;
+    }
     else
     {
       switch (*vel_flag)
@@ -513,6 +517,8 @@ void calculateCost(unsigned                    s,
           *k_d = prev_k_d;
           *vel_flag = 2;
           break;
+	case 2:
+	  break;
         default:
           *k_d = prev_k_d;
           break;
@@ -549,8 +555,8 @@ void ctrlVelCmd(const std::vector<float> &target_xy,
       break;
     case 2:
       *lin_vel = 0;
-      if(sqrt(pow(velocity.vector.x,2)+pow(velocity.vector.y,2)) < 0.1)
-        *vel_flag = 0;
+      //if(sqrt(pow(velocity.vector.x,2)+pow(velocity.vector.y,2)) < 0.1)
+       // *vel_flag = 0;
       break;
   }
 }

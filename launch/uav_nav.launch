@@ -7,6 +7,7 @@
   <node name="depth_gen_left" pkg="uav_nav" type="depth_generation_left" output="screen"/>
   <node name="depth_gen_right" pkg="uav_nav" type="depth_generation_right" output="screen"/>
   <node name="vfh_service_server" pkg="uav_nav" type="vfh_server" output="screen"/>
-  <node name="vfh_node" pkg="uav_nav" type="vfh" output="screen"/>
+  <node name="vfh" pkg="uav_nav" type="vfh" output="screen"/>
+  
   <!--node name="safety_interrupt" pkg="uav_nav" type="safety_interrupt" output="screen"/-->
 </launch>

@@ -166,6 +166,7 @@ void DepthProcessing(cv::Mat src_img){
 			if (y_grid == 0 || y_grid == numSlices_y-1) adjustedPixelHEIGHT += pushByPixelAmmount_y;
 			for (int x_pix=0; x_pix<adjustedPixelWIDTH; x_pix++){
 				for (int y_pix=0; y_pix<slicePixelHEIGHT; y_pix++){
+					debug_counter ++;
 					int x_coord = x_grid*slicePixelWIDTH + (x_grid != 0)*pushByPixelAmmount_x + x_pix;
 					int y_coord = y_grid*slicePixelHEIGHT + (y_grid != 0)*pushByPixelAmmount_y + y_pix;
 					float pixel_value = src_img.at<float>(y_coord, x_coord);
@@ -179,7 +180,8 @@ void DepthProcessing(cv::Mat src_img){
 				depthGridValues[x_grid][y_grid][0] = 0;
 			}else{
 				depthGridValues[x_grid][y_grid][0] = average/counter;
-			}			gridConfidence[x_grid][y_grid][0] = float(counter)/(adjustedPixelWIDTH*adjustedPixelHEIGHT);
+			}
+			gridConfidence[x_grid][y_grid][0] = float(counter)/(adjustedPixelWIDTH*adjustedPixelHEIGHT);
 		}
 	}
 
@@ -198,7 +200,7 @@ void DepthProcessing(cv::Mat src_img){
 	for (int i=0; i < numSlices_x; i++){
 		if (depthGridValues[i][0][0]<=scans.range_max){
 			scans.intensities[i] = gridConfidence[i][0][0];
-			if (gridConfidence[i][0][0] > 0.1)
+			if (gridConfidence[i][0][0] > 0.3)
 				scans.ranges[i] = depthGridValues[i][0][0];
 			else
 				scans.ranges[i] = 0.0;
@@ -216,7 +218,7 @@ int main(int argc, char** argv) {
 	left_image_sub  = nh.subscribe("uav_nav/guidance/left_image",  1, left_image_callback);
 	right_image_sub = nh.subscribe("uav_nav/guidance/right_image", 1, right_image_callback);
 
-	laser_scan_pub = nh.advertise<sensor_msgs::LaserScan>("uav_nav/laser_scan_from_depthIMG_debug", 1);
+	laser_scan_pub = nh.advertise<sensor_msgs::LaserScan>("uav_nav/laser_scan_from_depthIMG", 1);
 
 	cv::Mat depthMap;
 	ROS_INFO("Depth generation node running");

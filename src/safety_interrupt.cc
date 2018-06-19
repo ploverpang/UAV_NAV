@@ -98,7 +98,7 @@ int main(int argc, char** argv)
 	// Subscribers
 	ros::Subscriber ultrasonic_sub = nh.subscribe("uav_nav/guidance/ultrasonic",      1, &ultrasonic_callback); // sensor_feedback
 	ros::Subscriber laser_scan_sub = nh.subscribe("uav_nav/laser_scan_from_depthIMG", 1, &laser_scan_callback); // depth_generation
-  	ros::Subscriber rpy_sub        = nh.subscribe("uav_nav/roll_pitch_yaw",           1, &rpy_callback); // drone_control
+  ros::Subscriber rpy_sub        = nh.subscribe("uav_nav/roll_pitch_yaw",           1, &rpy_callback); // drone_control
  	ros::Subscriber loc_pos_sub    = nh.subscribe("dji_sdk/local_position",           1, &local_pos_callback); // dji_sdk
  	ros::Subscriber vel_sub        = nh.subscribe("dji_sdk/velocity",                 1, &velocity_callback);
 	ros::Subscriber vel_cmd_pub    = nh.subscribe("uav_nav/vel_cmd",                  1, &vel_cmd_callback); // vfh
@@ -112,7 +112,7 @@ int main(int argc, char** argv)
 	while(ros::ok())
 	{
 		if(interrupt_signal.data != 2)
-		{/*
+		{
   		vel_cmd_counter    = ros::Time::now().toSec() - vel_cmd_reset;
   		velocity_counter   = ros::Time::now().toSec() - velocity_reset;
   		rpy_counter        = ros::Time::now().toSec() - rpy_reset;
@@ -142,7 +142,7 @@ int main(int argc, char** argv)
       }
 
   		signal_interrupt.publish(interrupt_signal);
-		*/}
+		}
 
 		ros::spinOnce();
 	}

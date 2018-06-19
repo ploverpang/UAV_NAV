@@ -11,14 +11,14 @@ cv::Mat right_img1(HEIGHT, WIDTH, CV_8UC1);
 std::string left_id, right_id;
 // Queue to only run img processing when new images arrive.
 // Can also be used to tweek parameters if queue gets too big, and it reduces overhead when using gpu.
-int img_queue = 0; 
+int img_queue = 0;
 
 /* left greyscale image */
 void left_image_callback(const sensor_msgs::ImageConstPtr& left_img){
 	uchar arr[HEIGHT*WIDTH];
 	int size = sizeof(arr)/sizeof(*arr);
 	for (int i = 0; i < size; i++){
-		arr[i] = left_img->data[i];	
+		arr[i] = left_img->data[i];
 	}
 	cv::Mat buffer(HEIGHT, WIDTH, CV_8UC1); // This avoids artifacts that appear when modifying global variables directly
 	buffer.data = arr;
@@ -33,7 +33,7 @@ void right_image_callback(const sensor_msgs::ImageConstPtr& right_img){
 	uchar arr[HEIGHT*WIDTH];
 	int size = sizeof(arr)/sizeof(*arr);
 	for (int i = 0; i < size; i++){
-		arr[i] = right_img->data[i];	
+		arr[i] = right_img->data[i];
 	}
 	cv::Mat buffer(HEIGHT, WIDTH, CV_8UC1);
 	buffer.data = arr;
@@ -67,7 +67,7 @@ void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img, int dime
 	left_matcher->compute( L_cuda, R_cuda, disp_cuda);
 	disp_cuda.download(left_disp);
 	// cuda StereoBM returns an 8 bit image, while the cpu implementation returns a 16 bit deep disparity
-	left_disp.convertTo(left_disp, CV_16UC1, 16); 
+	left_disp.convertTo(left_disp, CV_16UC1, 16);
     #else
 	/*cv::Ptr<cv::StereoSGBM> left_matcher  = cv::StereoSGBM::create(0,numDisp,wsize);
 	// StereoSGBM parameter setup
@@ -126,10 +126,10 @@ void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img, int dime
 }
 
 void DepthProcessing(cv::Mat src_img){
-	/* To avoid confusion: everything refered to as 'x' in this method corresponds to the colomns of the matrix and 
+	/* To avoid confusion: everything refered to as 'x' in this method corresponds to the colomns of the matrix and
 	   vice versa for 'y'. Therefore when reading/writing cv::Mat values the coordinates are swapped. However as the
-	   algorithm is dependent on the camera field of view, we will continue using that convention originating from 
-	   typical coordinate system representation. */ 
+	   algorithm is dependent on the camera field of view, we will continue using that convention originating from
+	   typical coordinate system representation. */
 
 	// INPUT VARIABLES
 	static float slice_x = 5; // width of each sector in degrees
@@ -166,6 +166,7 @@ void DepthProcessing(cv::Mat src_img){
 			if (y_grid == 0 || y_grid == numSlices_y-1) adjustedPixelHEIGHT += pushByPixelAmmount_y;
 			for (int x_pix=0; x_pix<adjustedPixelWIDTH; x_pix++){
 				for (int y_pix=0; y_pix<slicePixelHEIGHT; y_pix++){
+					debug_counter ++;
 					int x_coord = x_grid*slicePixelWIDTH + (x_grid != 0)*pushByPixelAmmount_x + x_pix;
 					int y_coord = y_grid*slicePixelHEIGHT + (y_grid != 0)*pushByPixelAmmount_y + y_pix;
 					float pixel_value = src_img.at<float>(y_coord, x_coord);
@@ -175,11 +176,13 @@ void DepthProcessing(cv::Mat src_img){
 					}
 				}
 			}
-			if (counter == 0){
-				depthGridValues[x_grid][y_grid][0] = 0;
-			}else{
-				depthGridValues[x_grid][y_grid][0] = average/counter;
-			}			gridConfidence[x_grid][y_grid][0] = float(counter)/(adjustedPixelWIDTH*adjustedPixelHEIGHT);
+      if (counter == 0){
+        depthGridValues[x_grid][y_grid][0] = 0;
+      }else{
+        depthGridValues[x_grid][y_grid][0] = average/counter;
+      }
+
+			gridConfidence[x_grid][y_grid][0] = float(counter)/(adjustedPixelWIDTH*adjustedPixelHEIGHT);
 		}
 	}
 
@@ -198,7 +201,7 @@ void DepthProcessing(cv::Mat src_img){
 	for (int i=0; i < numSlices_x; i++){
 		if (depthGridValues[i][0][0]<=scans.range_max){
 			scans.intensities[i] = gridConfidence[i][0][0];
-			if (gridConfidence[i][0][0] > 0.1)
+			if (gridConfidence[i][0][0] > 0.3)
 				scans.ranges[i] = depthGridValues[i][0][0];
 			else
 				scans.ranges[i] = 0.0;
@@ -216,7 +219,7 @@ int main(int argc, char** argv) {
 	left_image_sub  = nh.subscribe("uav_nav/guidance/left_image",  1, left_image_callback);
 	right_image_sub = nh.subscribe("uav_nav/guidance/right_image", 1, right_image_callback);
 
-	laser_scan_pub = nh.advertise<sensor_msgs::LaserScan>("uav_nav/laser_scan_from_depthIMG_debug", 1);
+	laser_scan_pub = nh.advertise<sensor_msgs::LaserScan>("uav_nav/laser_scan_from_depthIMG", 1);
 
 	cv::Mat depthMap;
 	ROS_INFO("Depth generation node running");

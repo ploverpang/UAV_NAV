@@ -1,0 +1,10 @@
+<launch>
+  <!--include file="$(find dji_sdk)/launch/sdk.launch"-->
+  <rosparam command="load" file="$(find uav_nav)/config/uav_nav/uav_nav_params.yaml"/>
+  <node name="drone_control" pkg="uav_nav" type="drone_control" output="screen"/>
+  <!--node name="sensor_feedback" pkg="uav_nav" type="sensor_feedback" output="screen"-->
+  
+  <node name="vfh_service_server" pkg="uav_nav" type="vfh_server" output="screen"/>
+  <!--node name="vfh_node" pkg="uav_nav" type="vfh" output="screen"-->
+</launch>
+

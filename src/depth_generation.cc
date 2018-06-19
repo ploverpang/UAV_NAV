@@ -1,5 +1,4 @@
 #include "uav_nav/depth_generation.h"
-#include <iostream>
 
 ros::Subscriber left_image_sub;
 ros::Subscriber right_image_sub;
@@ -25,7 +24,7 @@ void left_image_callback(const sensor_msgs::ImageConstPtr& left_img){
 	buffer.copyTo(left_img1);
 
 	left_id = left_img->header.frame_id;
-	if (left_id == "right") img_queue++;
+	img_queue++;
 }
 
 /* right greyscale image */
@@ -49,7 +48,7 @@ void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img, int dime
 	// For Stereo Matcher
 	static int wsize =31;
 	static int numDisp = 16;
-	cv::Mat left_disp, masked_map, meter_map, out_img;
+	cv::Mat left_disp, masked_disp, meter_map, out_img;
 
 	// Variables keeping track of previous frame and frameID
 	static std::string frame_ID_buffer;
@@ -93,6 +92,8 @@ void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img, int dime
 	left_disp = left_disp(mask);
 
 	// Preparing disparity map for further processing
+	//left_disp.convertTo(left_disp, CV_8UC1);
+	//left_disp.setTo(0, left_disp==255);
 	left_disp.setTo(0, left_disp < 0);
 	if (dimensionality == ONE_DIMENSIONAL){
 		fovReduction(left_disp, left_disp);
@@ -100,12 +101,12 @@ void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img, int dime
 
 	// Dispraity map processing
 	if (!frameBuffer_sgbm.empty()){
-		dispToMeter(left_disp, meter_map);
 		bool clearList = (frame_ID_buffer != left_id);
-		maskOutliers(meter_map, masked_map, frameBuffer_sgbm, clearList, 1, 3);
-		//legacyRoundMorph(masked_map, 10, 5); // might not even be needed
-		DepthProcessing(masked_map);
-		masked_map.copyTo(dst_img);
+		maskOutliers(left_disp, masked_disp, frameBuffer_sgbm, clearList, 1, 20);
+		//legacyRoundMorph(masked_disp, 10, 5); // might not even be needed
+		dispToMeter(masked_disp, meter_map);
+		DepthProcessing(meter_map);
+		meter_map.copyTo(dst_img);
 		//roundMorph(dst_img, dst_img, 5, 1);
 	}
 	else{
@@ -115,7 +116,7 @@ void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img, int dime
 		meter_map.copyTo(dst_img);
 	}
 	// Buffering
-	meter_map.copyTo(frameBuffer_sgbm);
+	left_disp.copyTo(frameBuffer_sgbm);
 	frame_ID_buffer = left_id;
 
 	// Output
@@ -176,11 +177,7 @@ void DepthProcessing(cv::Mat src_img){
 					}
 				}
 			}
-                        if (counter == 0){
-                                depthGridValues[x_grid][y_grid][0] = 0;
-                        }else{
-                                depthGridValues[x_grid][y_grid][0] = average/counter;
-                        }
+			depthGridValues[x_grid][y_grid][0] = average/counter;
 			gridConfidence[x_grid][y_grid][0] = float(counter)/(adjustedPixelWIDTH*adjustedPixelHEIGHT);
 		}
 	}
@@ -200,7 +197,7 @@ void DepthProcessing(cv::Mat src_img){
 	for (int i=0; i < numSlices_x; i++){
 		if (depthGridValues[i][0][0]<=scans.range_max){
 			scans.intensities[i] = gridConfidence[i][0][0];
-			if (gridConfidence[i][0][0] > 0.3)
+			if (gridConfidence[i][0][0] > 0.2)
 				scans.ranges[i] = depthGridValues[i][0][0];
 			else
 				scans.ranges[i] = 0.0;
@@ -208,11 +205,21 @@ void DepthProcessing(cv::Mat src_img){
 	}
 	laser_scan_pub.publish(scans);
 
+	// For Debug
+	cv::Mat laserViz(1, numSlices_x, CV_8UC1);
+	for (int i = 0; i < numSlices_x; i++){
+		laserViz.data[i] = round(scans.ranges[i]*10);
+	}
+	
+        //imshow("vis", laserViz);
+//	fovReduction(left_img1, left_img1);
+	//imshow("FOV left image", left_img1);
+
 	return;
 }
 
 int main(int argc, char** argv) {
-	ros::init(argc, argv, "depth_generation_right");
+	ros::init(argc, argv, "depth_generation");
 	ros::NodeHandle nh;
 
 	left_image_sub  = nh.subscribe("uav_nav/guidance/left_image",  1, left_image_callback);
@@ -230,15 +237,12 @@ int main(int argc, char** argv) {
 
 	while(ros::ok()) {
 
-		if(!left_id.empty() && left_id.compare(right_id) == 0 && img_queue != 0 && left_id =="right") {  // Initial IMG rendering may delay the main loop.
+		if(!left_id.empty() && left_id.compare(right_id) == 0 && img_queue != 0) {  // Initial IMG rendering may delay the main loop.
 			CreateDepthImage(left_img1, right_img1, depthMap, ONE_DIMENSIONAL);
 			img_queue--;
 			#ifndef USE_GPU
 			if (!depthMap.empty()){
-			imshow("Depth image in meters right (scaled by 10x)", depthMap*10);
-			cv::Mat fov;
-			fovReduction(left_img1, fov);
-			imshow("fiv_right", fov);
+			imshow("Depth image in meters (scaled by 10x)", depthMap*10);
 			cv::waitKey(1);
 			}
 			#endif

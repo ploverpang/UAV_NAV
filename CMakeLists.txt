@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 2.8.3)
 project(uav_nav)
 set(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
 
+
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   nav_msgs
@@ -134,25 +135,6 @@ add_executable(vfh src/vfh.cc)
 target_link_libraries(vfh
   ${catkin_LIBRARIES}
   ${OpenCV_LIBS})
-
-add_executable(vfh_plot src/vfh_plot.cc)
-target_link_libraries(vfh_plot
-  ${catkin_LIBRARIES}
-  ${OpenCV_LIBS})
-
-add_executable(parameter_tuning
-  src/parameter.cc
-  src/supporting_alg.cc
-)
-target_link_libraries(parameter_tuning
-  ${OpenCV_LIBS}
-  ${catkin_LIBRARIES}
-)
-
-#add_executable(safety src/safety_interrupt.cc)
-#target_link_libraries(safety
-#  ${catkin_LIBRARIES}
-#  ${OpenCV_LIBS})
 
 add_executable(vfh_server src/vfh_services.cc)
 target_link_libraries(vfh_server

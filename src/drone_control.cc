@@ -117,7 +117,7 @@ void steeringDirCb(const uav_nav::Steering::ConstPtr& msg)
 {
   steering_dir = *msg;
 
-  execCmd();
+  //execCmd();
 }
 
 
@@ -150,11 +150,11 @@ int main(int argc, char** argv)
   ctrl_vel_cmd_pub  = nh.advertise<sensor_msgs::Joy>("dji_sdk/flight_control_setpoint_generic", 1);
   rpy_pub           = nh.advertise<geometry_msgs::Vector3Stamped>("uav_nav/roll_pitch_yaw",     1);
 
-  /*if(isM100() && setLocalPositionRef())
+  if(isM100() && setLocalPositionRef())
   {
     bool ready = obtainControl(true) ? monitoredTakeOff() : false;
     if(ready){
-      setAltitude(2.0);
+      setAltitude(2.5);
       ctrl_state = 1;
     }
   }
@@ -162,7 +162,7 @@ int main(int argc, char** argv)
   {
     ROS_ERROR("Only the M100 is supported! || Could not set local position reference.");
     return 0;
-  }*/
+  }
 
   ros::spin();
   return 0;
@@ -221,7 +221,7 @@ bool monitoredTakeOff()
     ros::spinOnce();
   }
 
-  if(flight_status != DJISDK::M100FlightStatus::M100_STATUS_IN_AIR || height < 1.0)
+  if(flight_status != DJISDK::M100FlightStatus::M100_STATUS_IN_AIR || height < 0.7)
   {
     ROS_ERROR("Take-off failed.\nHeight above takeoff: %f", height);
     return false;
@@ -281,7 +281,7 @@ void GPSHealthCb(const std_msgs::UInt8::ConstPtr& msg)
   if (current_gps_health <= 3)
   {
     ctrl_state = 0;
-    //ROS_ERROR("Cannot execute local position control. Not enough GPS satellites");
+    ROS_ERROR("Cannot execute local position control. Not enough GPS satellites");
   }
 }
 
@@ -323,7 +323,7 @@ void velCmdCb(const geometry_msgs::TwistStamped::ConstPtr& msg)
 {
   vel_cmd = *msg;
 
-  /*switch(ctrl_state)
+  switch(ctrl_state)
   {
     case 0:	break;
     case 1:
@@ -336,7 +336,7 @@ void velCmdCb(const geometry_msgs::TwistStamped::ConstPtr& msg)
       vel_cmd_rotate.twist.linear.x = 0;
       vel_cmd_rotate.twist.angular.z = 1;
       sendVelCmd(vel_cmd_rotate);
-  }*/
+  }
 }
 
 void sendVelCmd(geometry_msgs::TwistStamped cmd)
@@ -397,7 +397,7 @@ void quatToEuler()
 
 void setAltitude(float alt)
 {
-  while (std::fabs(alt-height) > 0.1)
+  while (std::fabs(alt-height) > 0.35)
   {
     float vel_z = std::fabs(alt-height) > 0.5 ? std::copysign(0.5, alt-height) : alt-height;
 

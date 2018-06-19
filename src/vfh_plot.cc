@@ -9,16 +9,8 @@ geometry_msgs::Vector3Stamped velocity;       // Linear velocity
 cv::Mat                       hist_grid;      // Histogram grid 2D
 cv::Mat                       circle_mask;    // Mask used to create circular active window
 float                 k_target            = 0.0;     // Target direction
-std::string id_buffer = "zero";
 int targetReached = 0;
-int upscalar = 10;
-cv::Mat show;
-int run = 0;
-
-
-void vfh_start(geometry_msgs::TwistStamped msg){
-  if (msg.twist.linear.x != 0) run = 1;
-}
+  cv::Mat plotIMG;
 
 
 int main(int argc, char** argv)
@@ -68,9 +60,9 @@ int main(int argc, char** argv)
   if(histDimension%2 != 1)
     histDimension++;
   hist_grid = cv::Mat::zeros(histDimension, histDimension, CV_8UC1);
+  cvtColor(hist_grid, plotIMG, CV_GRAY2RGB);
   circle_mask = cv::Mat::zeros(histDimension, histDimension, CV_8UC1);
   circle(circle_mask, cv::Point((hist_grid.rows-1)/2, (hist_grid.cols-1)/2), static_cast<int>(CAMERARANGE*1.5)*2, cv::Scalar(255), -1, 8, 0);
-
 
   //Services
   vfh_luts = nh.serviceClient<uav_nav::VFHLookUpTables>("uav_nav/vfh_luts");
@@ -79,9 +71,7 @@ int main(int argc, char** argv)
   ros::Subscriber loc_pos_sub    = nh.subscribe("dji_sdk/local_position",           1, &localPositionCb);
   ros::Subscriber vel_sub        = nh.subscribe("dji_sdk/velocity",                 1, &velocityCb);
   ros::Subscriber rpy_sub        = nh.subscribe("uav_nav/roll_pitch_yaw",           1, &RPYCb);
-  ros::Subscriber laser_scan_sub = nh.subscribe("uav_nav/laser_scan_from_depthIMG_debug", 3, &laserScanCb);
-  ros::Subscriber vfh_started    = nh.subscribe("uav_nav/vel_cmd", 1, &vfh_start);
-
+  ros::Subscriber laser_scan_sub = nh.subscribe("uav_nav/laser_scan_from_depthIMG", 3, &laserScanCb);
 
   //Publishers
   vel_cmd_pub = nh.advertise<geometry_msgs::TwistStamped>("uav_nav/vel_cmd", 1);
@@ -89,6 +79,10 @@ int main(int argc, char** argv)
   // Necessary functions before entering ros spin
   getLUTs(histDimension, radius_enlargement, &beta, &dist_scaled, &enlarge);
 
+  rpy.vector.z = -100.0;
+  /*while(rpy.vector.z == -100.0){
+  ros::spinOnce();
+  }*/
   std::vector<float> FLUtarget;
   FLUtarget.push_back(target_xy[0]*cos(rpy.vector.z+C_PI/2)-target_xy[1]*sin(rpy.vector.z+C_PI/2));
   FLUtarget.push_back(target_xy[0]*sin(rpy.vector.z+C_PI/2)+target_xy[1]*cos(rpy.vector.z+C_PI/2));
@@ -97,10 +91,6 @@ int main(int argc, char** argv)
   {
     private_nh_.getParam("/vfh/target", target_xy);
 
-    if(run){
-    resize(hist_grid, show, cv::Size(), upscalar, upscalar, cv::INTER_NEAREST);
-    cvtColor(show, show, CV_GRAY2RGB);
-
     getTargetDir(alpha, FLUtarget, &k_target);
     binaryHist(s, alpha, bin_hist_high, bin_hist_low, beta, dist_scaled, enlarge, &h);
     maskedPolarHist(alpha, radius_enlargement, max_rot_vel, beta, h, &masked_hist);
@@ -108,11 +98,19 @@ int main(int argc, char** argv)
     findCandidateDirections(s, k_target, k_l, k_r, &c);
     calculateCost(s, alpha, k_target, c, cost_params, masked_hist, &k_d, &vel_flag);
     ctrlVelCmd(FLUtarget, &vel_flag, &lin_vel);
+    publishCtrlCmd(k_d, lin_vel, max_rot_vel, alpha);
 
+    #ifndef USE_GPU
     // Debug only
+    cv::Mat show, plot_show;
+    resize(hist_grid, show, cv::Size(), 10, 10, cv::INTER_NEAREST);
+    show.at<unsigned char>(205,205) = 255;
     imshow("Histogram grid", show);
+    resize(plotIMG, plot_show, cv::Size(), 10, 10, cv::INTER_NEAREST);
+    imshow("plot", plot_show);
     cv::waitKey(1);
-    }
+    #endif
+
     ros::spinOnce();
   }
 
@@ -174,11 +172,6 @@ void getTargetDir(unsigned                 alpha,
 void fillHistogramGrid(sensor_msgs::LaserScan msg)
 {
   // Based on camera_ID, scalar * 90° is added to the yaw. CCW, north = 0°
-
-  //if (id_buffer == msg.header.frame_id) return;
-  //id_buffer = msg.header.frame_id;
-  if(!run)return;
-
   static int scalar;
   std::string camera_ID = msg.header.frame_id;
 
@@ -235,7 +228,6 @@ void fillHistogramGrid(sensor_msgs::LaserScan msg)
 
 void shiftHistogramGrid()
 {
-  if(!run)return;
   static float current_pos_x = local_position.point.x;
   static float current_pos_y = local_position.point.y;
   static const float hysteresis = 1.2;
@@ -247,8 +239,7 @@ void shiftHistogramGrid()
     int offset_x = -trunc(displacement_x / RESOLUTION_M);
     cv::Mat trans_mat = (cv::Mat_<float>(2,3) << 1, 0, offset_x, 0, 1, 0);
     /*#ifdef USE_GPU
-    cv::cuda::GpuMat hist_grid_cuda, trans_mat_cuda;
-    trans_mat_cuda.upload(trans_mat);
+    cv::cuda::GpuMat hist_grid_cuda;
     hist_grid_cuda.upload(hist_grid);
     cv::cuda::warpAffine(hist_grid, hist_grid, trans_mat, hist_grid.size());
     hist_grid_cuda.download(hist_grid);
@@ -267,8 +258,7 @@ void shiftHistogramGrid()
     int offset_y = trunc(displacement_y / RESOLUTION_M);
     cv::Mat trans_mat = (cv::Mat_<float>(2,3) << 1, 0, 0, 0, 1, offset_y);
     /*#ifdef USE_GPU
-    cv::cuda::GpuMat hist_grid_cuda, trans_mat_cuda;
-    trans_mat_cuda.upload(trans_mat);
+    cv::cuda::GpuMat hist_grid_cuda;
     hist_grid_cuda.upload(hist_grid);
     cv::cuda::warpAffine(hist_grid, hist_grid, trans_mat, hist_grid.size());
     hist_grid_cuda.download(hist_grid);
@@ -345,6 +335,14 @@ void maskedPolarHist(unsigned                    alpha,
   float th_r = back;                          // Right limit angle
   float th_l = back;                          // Left limit angle
 
+  cvtColor(hist_grid, plotIMG, CV_GRAY2RGB);
+  double alpha_blend = 0.3;
+  cv::Mat obstacle;
+  plotIMG.copyTo(obstacle);
+  obstacle = cv::Vec3b(0,0,0);
+  cv::Mat sector_block;
+  plotIMG.copyTo(sector_block);
+  sector_block = cv::Vec3b(0,0,0);
   for(int i = 0; i < hist_grid.rows; ++i)
   {
     for(int j = 0; j < hist_grid.cols; ++j)
@@ -352,6 +350,7 @@ void maskedPolarHist(unsigned                    alpha,
       unsigned index = j+(i*hist_grid.cols);
       if(hist_grid.at<unsigned char>(i, j) > t_obst)
       {
+        plotIMG.at<cv::Vec3b>(cv::Point(j,i)) = cv::Vec3b(255, 0, 0); 
         if(isBetweenRad(th_r, yaw, beta[index]) && blocked(dxr, dyr, j, i, r+r_enl))
           th_r = beta[index];
         else if(isBetweenRad(yaw, th_l, beta[index]) && blocked(dxl, dyl, j, i, r+r_enl))
@@ -360,22 +359,7 @@ void maskedPolarHist(unsigned                    alpha,
     }
   }
 
-  for(int i = 0; i < show.rows; ++i)
-  {
-    for(int j = 0; j < show.cols; ++j)
-    {
-      cv::Vec3b Intens = show.at<cv::Vec3b>(i, j);
-      if(Intens.val[0] > t_obst)
-      {
-        show.at<cv::Vec3b>(i, j) = cv::Vec3b(255,0,0);
-      }
-    }
-  }
-
-  cv::Mat sector_block;
-  show.copyTo(sector_block);
-  sector_block = cv::Vec3b(0,0,0);
-  double alpha_blend = 0.3;
+  //cv::addWeighted(plotIMG, 1-alpha_blend, obstacle, alpha_blend, 0, plotIMG);
 
   // Create masked polar histogram
   masked_hist->clear();
@@ -386,21 +370,21 @@ void maskedPolarHist(unsigned                    alpha,
     }
     else{
       masked_hist->push_back(1);
-      int hist_center = (show.rows-1)/2;
-      int radius_circle = round((float)CAMERARANGE*1.5/RESOLUTION_M)*upscalar;
+      int hist_center = (hist_grid.rows-1)/2;
+      int radius_circle = round((float)CAMERARANGE*1.5/RESOLUTION_M);
       cv::Point p0 = cv::Point(0, radius_circle);
       cv::Point center_point = cv::Point(hist_center, hist_center);
       cv::Point poly[1][4];
       poly[0][0] = center_point;
-      poly[0][1] = cv::Point(p0.x*cos(k*DEG2RAD(alpha))-p0.y*sin(k*DEG2RAD(alpha)) + (show.rows-1)/2, -(p0.x*sin((k)*DEG2RAD(alpha))+p0.y*cos((k)*DEG2RAD(alpha))) +(show.rows-1)/2 );
-      poly[0][2] = cv::Point(p0.x*cos((k+1)*DEG2RAD(alpha))-p0.y*sin((k+1)*DEG2RAD(alpha)) + (show.rows-1)/2, -(p0.x*sin((k+1)*DEG2RAD(alpha))+p0.y*cos((k+1)*DEG2RAD(alpha))) +(show.rows-1)/2 );
+      poly[0][1] = cv::Point(p0.x*cos(k*DEG2RAD(alpha))-p0.y*sin(k*DEG2RAD(alpha)) + 21, -(p0.x*sin((k)*DEG2RAD(alpha))+p0.y*cos((k)*DEG2RAD(alpha))) +21 );
+      poly[0][2] = cv::Point(p0.x*cos((k+1)*DEG2RAD(alpha))-p0.y*sin((k+1)*DEG2RAD(alpha)) + 21, -(p0.x*sin((k+1)*DEG2RAD(alpha))+p0.y*cos((k+1)*DEG2RAD(alpha))) +21 );
       poly[0][3] = center_point;
       const cv::Point* ppt[1] = {poly[0]};
       int npt[] = {4};
       cv::fillPoly(sector_block, ppt, npt, 1, cv::Scalar(0, 0, 255), 8);
     }
   }
-  cv::addWeighted(show, 1, sector_block, alpha_blend/2, 0, show);
+  cv::addWeighted(plotIMG, 1, sector_block, alpha_blend/2, 0, plotIMG);
 
 }
 
@@ -511,7 +495,7 @@ void calculateCost(unsigned                    s,
                   )
 {
   static float prev_k_d = 0.0; // Previous direction of motion
-  int drawflag = 0;
+
   if(c.size() != 0)
   {
     float g = 16384.0;
@@ -533,7 +517,6 @@ void calculateCost(unsigned                    s,
       *k_d = k_target;
     else
     {
-      drawflag =1;
       switch (*vel_flag)
       {
         case 0:
@@ -553,14 +536,14 @@ void calculateCost(unsigned                    s,
 
   prev_k_d = *k_d;
 
-  if(drawflag!=1){
-  int hist_center = (show.rows-1)/2;
-  int radius_circle = round((float)CAMERARANGE*1.5/RESOLUTION_M)*upscalar;
+
+  int hist_center = (hist_grid.rows-1)/2;
+  int radius_circle = round((float)CAMERARANGE*1.5/RESOLUTION_M);
   cv::Point p0 = cv::Point(0, radius_circle);
   cv::Point center_point = cv::Point(hist_center, hist_center);
-  cv::Point p1 = cv::Point(p0.x*cos((*k_d+0.5)*DEG2RAD(alpha))-p0.y*sin((*k_d+0.5)*DEG2RAD(alpha)) + hist_center, -(p0.x*sin((*k_d+0.5)*DEG2RAD(alpha))+p0.y*cos((*k_d+0.5)*DEG2RAD(alpha))) +hist_center );
-  line(show, cv::Point(hist_center, hist_center), p1, cv::Scalar(0, 255, 255), 1*upscalar/2, 8);
-  }
+  cv::Point p1 = cv::Point(p0.x*cos((*k_d+0.5)*DEG2RAD(alpha))-p0.y*sin((*k_d+0.5)*DEG2RAD(alpha)) + 21, -(p0.x*sin((*k_d+0.5)*DEG2RAD(alpha))+p0.y*cos((*k_d+0.5)*DEG2RAD(alpha))) +21 );
+  line(plotIMG, cv::Point(hist_center, hist_center), p1, cv::Scalar(0, 255, 255), 1, 8);
+
 }
 
 void ctrlVelCmd(const std::vector<float> &target_xy,
