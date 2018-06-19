@@ -35,17 +35,17 @@ bool monitoredTakeOff();
 bool monitoredLanding();
 
 // Callbacks
-void flightStatusCb(const std_msgs::UInt8::ConstPtr& msg);
-void GPSHealthCb(const std_msgs::UInt8::ConstPtr& msg);
-void attitudeCb(const geometry_msgs::QuaternionStamped::ConstPtr& msg);
-void heightCb(const std_msgs::Float32::ConstPtr& msg);
-void localPositionCb(const geometry_msgs::PointStamped::ConstPtr& msg);
-void interruptCb(const std_msgs::UInt8::ConstPtr& msg);
-void velCmdCb(const geometry_msgs::TwistStamped::ConstPtr& msg);
+void flightStatusCb(const std_msgs::UInt8::ConstPtr&);
+void GPSHealthCb(const std_msgs::UInt8::ConstPtr&);
+void attitudeCb(const geometry_msgs::QuaternionStamped::ConstPtr&);
+void heightCb(const std_msgs::Float32::ConstPtr&);
+void localPositionCb(const geometry_msgs::PointStamped::ConstPtr&);
+void interruptCb(const std_msgs::UInt8::ConstPtr&);
+void steeringDirCb(const uav_nav::Steering::ConstPtr&);
 
 // Publishers
-void sendVelCmd(geometry_msgs::TwistStamped cmd);
+void execCmd();
 void quatToEuler();
-void setAltitude(float);
+bool setAltitude(float);
 
 #endif // UAVNAV_DRONECONTROL_H_
