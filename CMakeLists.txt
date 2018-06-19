@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 2.8.3)
 project(uav_nav)
 set(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
 
-
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   nav_msgs
@@ -16,7 +15,6 @@ find_package(catkin REQUIRED COMPONENTS
 )
 find_package(DJIOSDK REQUIRED)
 find_package(OpenCV REQUIRED)
-
 
 roslaunch_add_file_check(launch)
 
@@ -42,31 +40,26 @@ catkin_package(
 message("System is: " ${CMAKE_SYSTEM_PROCESSOR})
 if (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
   if (CMAKE_SIZEOF_VOID_P EQUAL 4)
-    message("-- 32bit detected")
     link_directories(lib/x86)
   elseif (CMAKE_SIZEOF_VOID_P EQUAL 8)
-    message("-- 64bit detected")
     link_directories(lib/x64)
   endif ()
 else()
-  message("-- Non-linux platform detected but sorry we do not support :D")
+  message("Platform not supported")
 endif ()
-
 
 find_package(CUDA QUIET)
 if(CUDA_FOUND)
-    message(STATUS "Found ${CUDA_VERSION} CUDA installed in the system.")
+    message(STATUS "Found ${CUDA_VERSION} CUDA installed on the system")
     message(STATUS " - Includes: ${CUDA_INCLUDE_DIRS}")
     add_definitions(-DUSE_GPU)
 elseif()
-    message(STATUS "Did not find CUDA in the system")
+    message(STATUS "Did not find CUDA on the system")
 endif()
 
 
 if (${CMAKE_SYSTEM_PROCESSOR} MATCHES "armv7l" )
-  message("-- " ${CMAKE_SYSTEM_PROCESSOR} " detected")
   link_directories(lib/XU3)
-else ()
 endif ()
 
 include_directories(
@@ -77,11 +70,9 @@ include_directories(
 )
 
 add_executable(safety_interrupt
-  src/safety_interrupt.cc
-)
+  src/safety_interrupt.cc)
 target_link_libraries(safety_interrupt
-  ${catkin_LIBRARIES}
-)
+  ${catkin_LIBRARIES})
 
 add_executable(sensor_feedback
   src/sensor_feedback.cc
@@ -92,39 +83,28 @@ target_link_libraries(sensor_feedback
   ${DJIOSDK_LIBRARIES}
   DJI_guidance
   usb-1.0
-  yaml-cpp
-)
-
-if(CUDA_FOUND)
-    message(STATUS "Found ${CUDA_VERSION} CUDA installed in the system, depth_generation and vfh node will be compiled with CUDA support")
-else()
-    message(STATUS "Did not find CUDA in the system. CPU is used for depth_generation and vfh")
-endif()
+  yaml-cpp)
 
 add_executable(depth_generation_front
   src/depth_generation_front.cc
-  src/supporting_alg.cc
-)
+  src/supporting_alg.cc)
 target_link_libraries(depth_generation_front
   ${OpenCV_LIBS}
-  ${catkin_LIBRARIES}
-  )
+  ${catkin_LIBRARIES})
+
 add_executable(depth_generation_right
   src/depth_generation_right.cc
-  src/supporting_alg.cc
-)
+  src/supporting_alg.cc)
 target_link_libraries(depth_generation_right
   ${OpenCV_LIBS}
-  ${catkin_LIBRARIES}
-  )
+  ${catkin_LIBRARIES})
+
 add_executable(depth_generation_left
   src/depth_generation_left.cc
-  src/supporting_alg.cc
-)
+  src/supporting_alg.cc)
 target_link_libraries(depth_generation_left
   ${OpenCV_LIBS}
-  ${catkin_LIBRARIES}
-  )
+  ${catkin_LIBRARIES})
 
 add_executable(drone_control src/drone_control.cc)
 target_link_libraries(drone_control
@@ -142,19 +122,17 @@ target_link_libraries(vfh_server
   ${OpenCV_LIBS})
 add_dependencies(vfh_server uav_nav_gencpp)
 
-add_executable(vfh_plot src/vfh_plot.cc)	
-target_link_libraries(vfh_plot	
-  ${catkin_LIBRARIES}	
-  ${OpenCV_LIBS})	
-	
-add_executable(parameter_tuning	
-  src/parameter.cc	
-  src/supporting_alg.cc	
-)	
-target_link_libraries(parameter_tuning	
-  ${OpenCV_LIBS}	
-  ${catkin_LIBRARIES}	
-)
+add_executable(vfh_plot src/vfh_plot.cc)
+target_link_libraries(vfh_plot
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBS})
+
+add_executable(parameter_tuning
+  src/parameter.cc
+  src/supporting_alg.cc)
+target_link_libraries(parameter_tuning
+  ${OpenCV_LIBS}
+  ${catkin_LIBRARIES})
 
 #install(DIRECTORY launch
 #  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch

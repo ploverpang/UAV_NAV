@@ -2,11 +2,14 @@
 <package>
   <name>uav_nav</name>
   <version>1.0.0</version>
-  <description>A ROS package using DJI OSDK and Guidance to create autonomous UAV controller. </description>
+  <description>A ROS package using DJI OSDK and Guidance to create an autonomous UAV controller using VFH.</description>
   <maintainer email="rkajat15@student.aau.dk">Roland Kajatin</maintainer>
   <license>MIT</license>
   <url type="website">https://github.com/AAUROB666/UAV_NAV</url>
   <author email="rkajat15@student.aau.dk">Roland Kajatin</author>
+  <author email="mbalaz15@student.aau.dk">Milan Balazs</author>
+  <author email="pbalaz15@student.aau.dk">Peter Balazs</author>
+  <author email="madami15@student.aau.dk">Mark Adamik</author>
 
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>geometry_msgs</build_depend>
