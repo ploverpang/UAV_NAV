@@ -6,6 +6,7 @@
 #include <geometry_msgs/PointStamped.h>
 #include <geometry_msgs/Vector3Stamped.h>
 #include <sensor_msgs/LaserScan.h>
+#include <std_msgs/Bool.h>
 
 #include <opencv2/opencv.hpp>
 #ifdef USE_GPU

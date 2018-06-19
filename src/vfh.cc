@@ -105,7 +105,7 @@ int main(int argc, char** argv)
     findValleyBorders(masked_hist, &k_l, &k_r);
     findCandidateDirections(s, k_target, k_l, k_r, &c);
     calculateCost(s, alpha, k_target, c, cost_params, masked_hist, &k_d);
-    publishSteeringDir(red_vel, alpha, k_d, FLUtarget, k_target);
+    publishSteeringDir(red_vel, alpha, k_d, k_target, FLUtarget);
 
     ros::spinOnce();
   }
@@ -537,7 +537,7 @@ void calculateCost(unsigned                    s,
     }
     else
     {
-      *k_d = std::nan();
+      *k_d = std::nanf();
     }
   }
 
