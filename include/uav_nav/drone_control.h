@@ -8,6 +8,7 @@
 // Messages
 #include <std_msgs/UInt8.h>
 #include <std_msgs/Float32.h>
+#include <std_msgs/Bool.h>
 #include <sensor_msgs/Joy.h>
 #include <geometry_msgs/PointStamped.h>
 #include <geometry_msgs/QuaternionStamped.h>

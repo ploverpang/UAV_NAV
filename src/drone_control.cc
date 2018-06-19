@@ -5,12 +5,14 @@ ros::ServiceClient               query_version_service;
 ros::ServiceClient               set_loc_pos_ref_service;
 ros::ServiceClient               sdk_ctrl_authority_service;
 ros::ServiceClient               drone_task_service;
+ros::Publisher 				           ready_pub;                         //
 ros::Publisher 				           ctrl_vel_cmd_pub;                  // Velocity control command sent to the FC
 ros::Publisher 				           rpy_pub;                           // Publish roll, pitch, yaw in radians
 geometry_msgs::PointStamped      local_position;                    // Local position offset in FLU frame
 geometry_msgs::TwistStamped	     vel_cmd;
 geometry_msgs::QuaternionStamped attitude_state;
 uav_nav::Steering                steering_dir;
+float	 		                       altitude;
 float                            height                      = 0;
 uint8_t                          flight_status               = 255; // Enum representing drone state upon take off
 uint8_t                          current_gps_health          = 0;   // Number of GPS satellite connections
@@ -46,12 +48,18 @@ void FSM()
       break;
 
     case 2:
-      ctrl_state = setAltitude(2.5) ? 3 : 90;
+      ctrl_state = setAltitude(altitude) ? 3 : 90;
       break;
 
     case 3:
-      //TODO reset vfh hist_grid
+    {
+      std_msgs::Bool r;
+      r.data = true;
+      ready_pub.publish(r);
+      ctrl_state = 4;
+      ros::spinOnce();
       break;
+    }
 
     case 90:
       bool landed = monitoredLanding() ? obtainControl(false) : false;
@@ -75,18 +83,17 @@ int main(int argc, char** argv)
   ros::NodeHandle nh;
   ros::NodeHandle private_nh_("~");
   ros::Duration(10).sleep();
-	
-  // Altitude coming from parameters
-  float	 		alt;
-  private_nh_.param("/drone_control/alt",      alt,             2.5f);
-	
+
+  // Parameters
+  private_nh_.param("/drone_control/alt", altitude, 2.5f);
+
   // Services
   query_version_service      = nh.serviceClient<dji_sdk::QueryDroneVersion>	  ("dji_sdk/query_drone_version");
   set_loc_pos_ref_service    = nh.serviceClient<dji_sdk::SetLocalPosRef>		  ("dji_sdk/set_local_pos_ref");
   sdk_ctrl_authority_service = nh.serviceClient<dji_sdk::SDKControlAuthority>	("dji_sdk/sdk_control_authority");
   drone_task_service         = nh.serviceClient<dji_sdk::DroneTaskControl>	  ("dji_sdk/drone_task_control");
 
-  // Subscribe to messages from dji_sdk_node
+  // Subscribers
   ros::Subscriber flight_status_sub = nh.subscribe("dji_sdk/flight_status",        1, &flightStatusCb);
   ros::Subscriber gps_health_sub    = nh.subscribe("dji_sdk/gps_health",           1, &GPSHealthCb);
   ros::Subscriber attitude_sub      = nh.subscribe("dji_sdk/attitude",             1, &attitudeCb);
@@ -95,9 +102,10 @@ int main(int argc, char** argv)
   ros::Subscriber steering_dir_sub  = nh.subscribe("uav_nav/steering_dir",         1, &steeringDirCb);
   ros::Subscriber interrupt_pub     = nh.subscribe("uav_nav/signal_interrupt",     1, &interruptCb);
 
-  // Publish the control signal
+  // Publishers
+  ready_pub         = nh.advertise<std_msgs::Bool>("uav_nav/dc_ready", 1);
   ctrl_vel_cmd_pub  = nh.advertise<sensor_msgs::Joy>("dji_sdk/flight_control_setpoint_generic", 1);
-  rpy_pub           = nh.advertise<geometry_msgs::Vector3Stamped>("uav_nav/roll_pitch_yaw",     1);
+  rpy_pub           = nh.advertise<geometry_msgs::Vector3Stamped>("uav_nav/roll_pitch_yaw", 1);
 
   while(ros::ok())
   {

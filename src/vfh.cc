@@ -1,4 +1,5 @@
 #include "uav_nav/vfh.h"
+#include <std_msgs/Bool.h>
 
 // Global variables
 ros::ServiceClient            vfh_luts;       // Service client
@@ -10,6 +11,7 @@ geometry_msgs::Vector3Stamped velocity;       // Linear velocity
 cv::Mat                       hist_grid;      // Histogram grid 2D
 cv::Mat                       circle_mask;    // Mask used to create circular active window
 int                           target_reached = 0;
+bool            ready                = false;
 
 
 void publishSteeringDir(unsigned alpha, float k_d, std::vector<float> FLUtarget, float k_target)
@@ -25,7 +27,10 @@ void publishSteeringDir(unsigned alpha, float k_d, std::vector<float> FLUtarget,
   steering_pub.publish(steer);
 }
 
-
+void readyCb(const std_msgs::Bool::ConstPtr& msg)
+{
+  ready = msg->data;
+}
 
 
 int main(int argc, char** argv)
@@ -34,7 +39,12 @@ int main(int argc, char** argv)
   ros::init(argc, argv, "vfh");
   ros::NodeHandle nh;
   ros::NodeHandle private_nh_("~");
-  ros::Duration(35).sleep();
+
+  ros::Subscriber ready_sub = nh.subscribe("uav_nav/dc_ready", 1, &readyCb);
+  while(ros::ok() && !ready)
+  {
+    ros::spinOnce();
+  }
 
   // Parameter variables
   int                   s;                             // Number of angular sectors
@@ -88,16 +98,16 @@ int main(int argc, char** argv)
   //line(hist_grid, cv::Point(23, 10), cv::Point(10, 20), cv::Scalar(255), 1, 4);
 
 
-  //Services
+  // Services
   vfh_luts = nh.serviceClient<uav_nav::VFHLookUpTables>("uav_nav/vfh_luts");
 
-  //Subsriber
+  // Subsribers
   ros::Subscriber loc_pos_sub    = nh.subscribe("dji_sdk/local_position",           1, &localPositionCb);
   ros::Subscriber vel_sub        = nh.subscribe("dji_sdk/velocity",                 1, &velocityCb);
   ros::Subscriber rpy_sub        = nh.subscribe("uav_nav/roll_pitch_yaw",           1, &RPYCb);
   ros::Subscriber laser_scan_sub = nh.subscribe("uav_nav/laser_scan_from_depthIMG", 3, &laserScanCb);
 
-  //Publishers
+  // Publishers
   vel_cmd_pub = nh.advertise<geometry_msgs::TwistStamped>("uav_nav/vel_cmd", 1);
   steering_pub = nh.advertise<uav_nav::Steering>("uav_nav/steering_dir", 1);
 
