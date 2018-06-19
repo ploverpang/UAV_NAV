@@ -6,6 +6,9 @@ vfh:
   cost_params: [5,2,2]
   target: [20,0]
   t_obst: 60
+  
+safety:
+  ultrasonic_threshold: 2
 
 sensor_feedback:
   show_debug_info: false
