@@ -45,9 +45,11 @@ int main(int argc, char** argv)
   std::vector<float>    target_xy;                     // Target for the drone
   static const float    cost_default[]      = {5,2,2}; // Default cost parameters
   static const float    target_default[]    = {0,0};   // Default target [x, y]
+  float 		t_obst;			      // Obstacle threshold
 
   // Load parameters
   private_nh_.param("/vfh/s",           s,                  72);
+  private_nh_.param("/vfh/t_obst",      t_obst,      60.f);
   private_nh_.param("/vfh/t_high",      bin_hist_high,      1.f);
   private_nh_.param("/vfh/t_low",       bin_hist_low,       1.f);
   private_nh_.param("/vfh/r_enl",       radius_enlargement, 1.f);
@@ -116,7 +118,7 @@ int main(int argc, char** argv)
 
     getTargetDir(alpha, FLUtarget, &k_target);
     binaryHist(s, alpha, bin_hist_high, bin_hist_low, beta, dist_scaled, enlarge, &h);
-    maskedPolarHist(alpha, radius_enlargement, max_rot_vel, beta, h, &masked_hist);
+    maskedPolarHist(alpha, radius_enlargement, max_rot_vel, beta, h, &masked_hist, t_obst);
     findValleyBorders(masked_hist, &k_l, &k_r);
     findCandidateDirections(s, k_target, k_l, k_r, &c);
     calculateCost(s, alpha, k_target, c, cost_params, masked_hist, &k_d, &vel_flag);
@@ -333,11 +335,10 @@ void maskedPolarHist(unsigned                    alpha,
                      float                       max_rot_vel, // Maximum rotational velocity
                      const std::vector<float>    &beta,
                      const std::vector<unsigned> &h,
-                     std::vector<unsigned>       *masked_hist
+                     std::vector<unsigned>       *masked_hist,
+		     float			 t_obst
                     )
 {
-  static const float t_obst      = 60.0;      // Obstacle threshold
-
   float yaw  = rpy.vector.z;                  // Heading of drone in radians
   float r    = sqrt(pow(velocity.vector.x,2)+pow(velocity.vector.y,2))/max_rot_vel; // Minimum steering radius assuming it is the same for both directions
   float back = wrapToPi(yaw-C_PI);            // Opposite direction of heading
