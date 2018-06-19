@@ -98,7 +98,7 @@ int main(int argc, char** argv)
     findCandidateDirections(s, k_target, k_l, k_r, &c);
     calculateCost(s, alpha, k_target, c, cost_params, masked_hist, &k_d, &vel_flag);
     ctrlVelCmd(FLUtarget, &vel_flag, &lin_vel);
-    publishCtrlCmd(k_d, lin_vel, max_rot_vel, alpha);
+    publishCtrlCmd(k_d, lin_vel, max_rot_vel, alpha, k_target);
 
     #ifndef USE_GPU
     // Debug only
@@ -581,7 +581,8 @@ void ctrlVelCmd(const std::vector<float> &target_xy,
 void publishCtrlCmd(float    k_d,
                     float    lin_vel,
                     float    max_rot_vel,
-                    unsigned alpha
+                    unsigned alpha,
+                    float 	 k_target
                    )
 {
   float yawrate;
