@@ -5,6 +5,10 @@ vfh:
   r_enl: 2
   cost_params: [5,2,2]
   target: [20,0]
+  t_obst: 60
 
 sensor_feedback:
   show_debug_info: false
+
+drone_control:
+  alt: 2.5
