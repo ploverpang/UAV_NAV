@@ -43,6 +43,7 @@ void heightCb(const std_msgs::Float32::ConstPtr&);
 void localPositionCb(const geometry_msgs::PointStamped::ConstPtr&);
 void interruptCb(const std_msgs::UInt8::ConstPtr&);
 void steeringDirCb(const uav_nav::Steering::ConstPtr&);
+void maskedSpeedCb(const std_msgs::UInt8::ConstPtr& msg);
 
 // Publishers
 void execCmd();

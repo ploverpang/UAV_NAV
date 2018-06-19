@@ -1,10 +1,12 @@
 #include "uav_nav/vfh.h"
 #include <std_msgs/Bool.h>
+#include <std_msgs/UInt8.h>
 
 // Global variables
 ros::ServiceClient            vfh_luts;       // Service client
 ros::Publisher                vel_cmd_pub;    // Linear x velocity, and yaw rate
 ros::Publisher                steering_pub;   //
+ros::Publisher                masked_speed;   // Should we go at half speed?
 geometry_msgs::PointStamped   local_position; // Local position offset in FLU frame
 geometry_msgs::Vector3Stamped rpy;            // Roll, pitch, yaw
 geometry_msgs::Vector3Stamped velocity;       // Linear velocity
@@ -340,17 +342,17 @@ void binaryHist(unsigned                 s,
   prev_h = *h;
 }
 
-void maskedPolarHist(unsigned                    alpha,
+void maskedPolarHistAtHalf(unsigned              alpha,
                      float                       r_enl,
                      float                       max_rot_vel, // Maximum rotational velocity
                      const std::vector<float>    &beta,
                      const std::vector<unsigned> &h,
                      std::vector<unsigned>       *masked_hist,
-		     float			 t_obst
+                     float                       t_obst
                     )
 {
   float yaw  = rpy.vector.z;                  // Heading of drone in radians
-  float r    = sqrt(pow(velocity.vector.x,2)+pow(velocity.vector.y,2))/max_rot_vel; // Minimum steering radius assuming it is the same for both directions
+  float r    = sqrt(pow(velocity.vector.x,2)+pow(velocity.vector.y,2))/(max_rot_vel*2); // Minimum steering radius assuming it is the same for both directions
   float back = wrapToPi(yaw-C_PI);            // Opposite direction of heading
   float dxr  = r * sin(yaw);                  // X coord. of right trajectory circle
   float dyr  = r * cos(yaw);                  // Y coord. of right trajectory circle
@@ -382,6 +384,74 @@ void maskedPolarHist(unsigned                    alpha,
       masked_hist->push_back(0);
     else
       masked_hist->push_back(1);
+  }
+  std_msgs::UInt8 speed;
+  speed.data = 1;
+  masked_speed.publish(speed);
+
+}
+
+void maskedPolarHist(unsigned                    alpha,
+                     float                       r_enl,
+                     float                       max_rot_vel, // Maximum rotational velocity
+                     const std::vector<float>    &beta,
+                     const std::vector<unsigned> &h,
+                     std::vector<unsigned>       *masked_hist,
+                     float                       t_obst
+                    )
+{
+  float yaw  = rpy.vector.z;                  // Heading of drone in radians
+  float r    = sqrt(pow(velocity.vector.x,2)+pow(velocity.vector.y,2))/max_rot_vel; // Minimum steering radius assuming it is the same for both directions
+  float back = wrapToPi(yaw-C_PI);            // Opposite direction of heading
+  float dxr  = r * sin(yaw);                  // X coord. of right trajectory circle
+  float dyr  = r * cos(yaw);                  // Y coord. of right trajectory circle
+  float dxl  = -dxr;                          // X coord. of left trajectory circle
+  float dyl  = -dyr;                          // Y coord. of left trajectory circle
+  float th_r = back;                          // Right limit angle
+  float th_l = back;                          // Left limit angle
+
+  for(int i = 0; i < hist_grid.rows; ++i)
+  {
+    for(int j = 0; j < hist_grid.cols; ++j)
+    {
+      unsigned index = j+(i*hist_grid.cols);
+      if(hist_grid.at<unsigned char>(i, j) > t_obst)
+      {
+        if(isBetweenRad(th_r, yaw, beta[index]) && blocked(dxr, dyr, j, i, r+r_enl))
+          th_r = beta[index];
+        else if(isBetweenRad(yaw, th_l, beta[index]) && blocked(dxl, dyl, j, i, r+r_enl))
+          th_l = beta[index];
+      }
+    }
+  }
+
+  // Create masked polar histogram
+  bool needHalfTry = true;
+  masked_hist->clear();
+  for(int k = 0; k < h.size(); ++k)
+  {
+    if(h[k] == 0 && (isBetweenRad(th_r, yaw, DEG2RAD(alpha)*k) || isBetweenRad(yaw, th_l, DEG2RAD(alpha)*k))){
+      masked_hist->push_back(0);
+      needHalfTry = false;
+    }
+    else{
+      masked_hist->push_back(1);
+    }
+  }
+  if (needHalfTry){
+    maskedPolarHistAtHalf(alpha,
+                     r_enl,
+                     max_rot_vel, // Maximum rotational velocity
+                     beta,
+                     h,
+                     masked_hist,
+                     t_obst
+                    );
+  }
+  else{ 
+    std_msgs::UInt8 speed;
+    speed.data = 0;
+    masked_speed.publish(speed);
   }
 }
 

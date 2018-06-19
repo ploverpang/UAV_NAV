@@ -101,6 +101,7 @@ int main(int argc, char** argv)
   ros::Subscriber loc_pos_sub       = nh.subscribe("dji_sdk/local_position",       1, &localPositionCb);
   ros::Subscriber steering_dir_sub  = nh.subscribe("uav_nav/steering_dir",         1, &steeringDirCb);
   ros::Subscriber interrupt_pub     = nh.subscribe("uav_nav/signal_interrupt",     1, &interruptCb);
+  ros::Subscriber masked_speed_sub       = nh.subscribe("uav_nav/masked_speed",     1, &maskedSpeedCb);
 
   // Publishers
   ready_pub         = nh.advertise<std_msgs::Bool>("uav_nav/dc_ready", 1);
@@ -250,6 +251,7 @@ void interruptCb(const std_msgs::UInt8::ConstPtr& msg) {
     case 0:
       ctrl_state = 1;
       ROS_DEBUG("Safety OK");
+      break;
     case 1:
       ctrl_state = 0;
       ROS_ERROR("System malfunction");
@@ -257,6 +259,18 @@ void interruptCb(const std_msgs::UInt8::ConstPtr& msg) {
     case 2:
       ROS_WARN("Object inside safety threshold");
       ctrl_state = 2;
+      break;
+  }
+}
+
+void maskedSpeedCb(const std_msgs::UInt8::ConstPtr& msg) {
+  switch (msg->data)
+  {
+    case 0:
+      ctrl_state = 1;
+      break;
+    case 1:
+      ctrl_state = 3;
       break;
   }
 }
@@ -339,7 +353,7 @@ void execCmd()
   switch(ctrl_state)
   {
     case 0:	break;
-    case 1:
+    case 1: //Regular
       ctrl_vel_yawrate.axes.push_back(lin_vel);
       ctrl_vel_yawrate.axes.push_back(0);
       ctrl_vel_yawrate.axes.push_back(0);
@@ -353,6 +367,15 @@ void execCmd()
       ctrl_vel_yawrate.axes.push_back(0);
       ctrl_vel_yawrate.axes.push_back(0);
       ctrl_vel_yawrate.axes.push_back(1);
+      ctrl_vel_yawrate.axes.push_back(flag);
+
+      ctrl_vel_cmd_pub.publish(ctrl_vel_yawrate);
+      break;
+    case 3: //Half speed
+      ctrl_vel_yawrate.axes.push_back(lin_vel/2);
+      ctrl_vel_yawrate.axes.push_back(0);
+      ctrl_vel_yawrate.axes.push_back(0);
+      ctrl_vel_yawrate.axes.push_back(yawrate);
       ctrl_vel_yawrate.axes.push_back(flag);
 
       ctrl_vel_cmd_pub.publish(ctrl_vel_yawrate);
