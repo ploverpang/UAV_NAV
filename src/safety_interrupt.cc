@@ -112,7 +112,7 @@ int main(int argc, char** argv)
 	while(ros::ok())
 	{
 		if(interrupt_signal.data != 2)
-		{
+		{/*
   		vel_cmd_counter    = ros::Time::now().toSec() - vel_cmd_reset;
   		velocity_counter   = ros::Time::now().toSec() - velocity_reset;
   		rpy_counter        = ros::Time::now().toSec() - rpy_reset;
@@ -142,7 +142,7 @@ int main(int argc, char** argv)
       }
 
   		signal_interrupt.publish(interrupt_signal);
-		}
+		*/}
 
 		ros::spinOnce();
 	}

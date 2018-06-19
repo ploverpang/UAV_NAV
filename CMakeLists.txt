@@ -142,6 +142,20 @@ target_link_libraries(vfh_server
   ${OpenCV_LIBS})
 add_dependencies(vfh_server uav_nav_gencpp)
 
+add_executable(vfh_plot src/vfh_plot.cc)	
+target_link_libraries(vfh_plot	
+  ${catkin_LIBRARIES}	
+  ${OpenCV_LIBS})	
+	
+add_executable(parameter_tuning	
+  src/parameter.cc	
+  src/supporting_alg.cc	
+)	
+target_link_libraries(parameter_tuning	
+  ${OpenCV_LIBS}	
+  ${catkin_LIBRARIES}	
+)
+
 #install(DIRECTORY launch
 #  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
 #)
