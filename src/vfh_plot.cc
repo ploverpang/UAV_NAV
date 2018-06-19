@@ -11,6 +11,7 @@ cv::Mat                       circle_mask;    // Mask used to create circular ac
 float                 k_target            = 0.0;     // Target direction
 int targetReached = 0;
   cv::Mat plotIMG;
+float t_obst      = 60.0;      // Obstacle threshold
 
 
 int main(int argc, char** argv)
@@ -93,7 +94,7 @@ int main(int argc, char** argv)
 
     getTargetDir(alpha, FLUtarget, &k_target);
     binaryHist(s, alpha, bin_hist_high, bin_hist_low, beta, dist_scaled, enlarge, &h);
-    maskedPolarHist(alpha, radius_enlargement, max_rot_vel, beta, h, &masked_hist);
+    maskedPolarHist(alpha, radius_enlargement, max_rot_vel, beta, h, &masked_hist, t_obst);
     findValleyBorders(masked_hist, &k_l, &k_r);
     findCandidateDirections(s, k_target, k_l, k_r, &c);
     calculateCost(s, alpha, k_target, c, cost_params, masked_hist, &k_d, &vel_flag);
@@ -320,10 +321,11 @@ void maskedPolarHist(unsigned                    alpha,
                      float                       max_rot_vel, // Maximum rotational velocity
                      const std::vector<float>    &beta,
                      const std::vector<unsigned> &h,
-                     std::vector<unsigned>       *masked_hist
+                     std::vector<unsigned>       *masked_hist,
+                     float t_obst
                     )
 {
-  static const float t_obst      = 60.0;      // Obstacle threshold
+  
 
   float yaw  = rpy.vector.z;                  // Heading of drone in radians
   float r    = sqrt(pow(velocity.vector.x,2)+pow(velocity.vector.y,2))/max_rot_vel; // Minimum steering radius assuming it is the same for both directions

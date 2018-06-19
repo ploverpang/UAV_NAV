@@ -29,7 +29,7 @@ void getTargetDir(unsigned alpha, const std::vector<float> &target, float *k_tar
 void fillHistogramGrid(sensor_msgs::LaserScan msg);
 void shiftHistogramGrid();
 void binaryHist(unsigned s, unsigned alpha, float t_high, float t_low, const std::vector<float> &beta, const std::vector<float> &dist_scaled, const std::vector<float> &enlarge, std::vector<unsigned> *h);
-void maskedPolarHist(unsigned alpha, float r_enl, float max_rot_vel, const std::vector<float> &beta, const std::vector<unsigned> &h, std::vector<unsigned> *masked_hist);
+void maskedPolarHist(unsigned alpha, float r_enl, float max_rot_vel, const std::vector<float> &beta, const std::vector<unsigned> &h, std::vector<unsigned> *masked_hist, float t_obst);
 void findValleyBorders(const std::vector<unsigned> &masked_hist, std::vector<int> *k_l, std::vector<int> *k_r);
 void findCandidateDirections(unsigned s, float k_target, const std::vector<int> &k_l, const std::vector<int> &k_r, std::vector<float> *c);
 void calculateCost(unsigned s, unsigned alpha, float k_target, const std::vector<float> &c, const std::vector<float> &mu, const std::vector<unsigned> &masked_hist, float *k_d, unsigned *vel_flag);

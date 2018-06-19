@@ -73,8 +73,13 @@ int main(int argc, char** argv)
 {
   ros::init(argc, argv, "drone_control");
   ros::NodeHandle nh;
+  ros::NodeHandle private_nh_("~");
   ros::Duration(10).sleep();
-
+	
+  // Altitude coming from parameters
+  float	 		alt;
+  private_nh_.param("/drone_control/alt",      alt,             2.5f);
+	
   // Services
   query_version_service      = nh.serviceClient<dji_sdk::QueryDroneVersion>	  ("dji_sdk/query_drone_version");
   set_loc_pos_ref_service    = nh.serviceClient<dji_sdk::SetLocalPosRef>		  ("dji_sdk/set_local_pos_ref");
