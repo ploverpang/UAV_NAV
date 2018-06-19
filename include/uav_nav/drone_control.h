@@ -46,6 +46,6 @@ void velCmdCb(const geometry_msgs::TwistStamped::ConstPtr& msg);
 // Publishers
 void sendVelCmd(geometry_msgs::TwistStamped cmd);
 void quatToEuler();
-void setAltitude(float);
+void setAltitude(float alt);
 
 #endif // UAVNAV_DRONECONTROL_H_
