@@ -17,7 +17,7 @@
 
 #define CAMERAFOV_X 60
 #define CAMERAFOV_Y 56
-#define CLEARANCE 1.75 
+#define CLEARANCE 2 
 enum representation {ONE_DIMENSIONAL = 1, TWO_DIMENSIONAL = 2};
 
 float findsmallestX(std::vector<int> arr, int numberOfArrayElements, int stopNumber);

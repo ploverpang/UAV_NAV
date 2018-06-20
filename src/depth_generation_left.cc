@@ -159,14 +159,12 @@ void DepthProcessing(cv::Mat src_img){
 		for (int y_grid=0; y_grid<numSlices_y; y_grid++){
 			float average = 0;
 			int counter = 0;
-			int debug_counter = 0;
 			int adjustedPixelWIDTH = slicePixelWIDTH;
 			int adjustedPixelHEIGHT = slicePixelHEIGHT;
 			if (x_grid == 0 || x_grid == numSlices_x-1) adjustedPixelWIDTH += pushByPixelAmmount_x;
 			if (y_grid == 0 || y_grid == numSlices_y-1) adjustedPixelHEIGHT += pushByPixelAmmount_y;
 			for (int x_pix=0; x_pix<adjustedPixelWIDTH; x_pix++){
 				for (int y_pix=0; y_pix<slicePixelHEIGHT; y_pix++){
-					debug_counter ++;
 					int x_coord = x_grid*slicePixelWIDTH + (x_grid != 0)*pushByPixelAmmount_x + x_pix;
 					int y_coord = y_grid*slicePixelHEIGHT + (y_grid != 0)*pushByPixelAmmount_y + y_pix;
 					float pixel_value = src_img.at<float>(y_coord, x_coord);
