@@ -15,6 +15,7 @@
 #include "uav_nav/DJI_utility.h"
 
 #include "uav_nav/uav_nav.h"
+#include <uav_nav/Images.h>
 
 #define PIXEL_PER_ANGLE 4.2857
 

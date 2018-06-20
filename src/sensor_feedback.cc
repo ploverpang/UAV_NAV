@@ -3,6 +3,7 @@
 // Global variables
 ros::Publisher                left_image_pub;
 ros::Publisher                right_image_pub;
+ros::Publisher                images_pub;
 ros::Publisher                obstacle_distance_pub;
 ros::Publisher                ultrasonic_pub;
 geometry_msgs::Vector3Stamped rpy;
@@ -33,6 +34,7 @@ int main(int argc, char** argv)
   //Publishers
   left_image_pub			  = nh.advertise<sensor_msgs::Image>    ("uav_nav/guidance/left_image",        1);
   right_image_pub			  = nh.advertise<sensor_msgs::Image>    ("uav_nav/guidance/right_image",       1);
+  images_pub    			  = nh.advertise<uav_nav::Images>       ("uav_nav/images",                     1);
   obstacle_distance_pub	= nh.advertise<sensor_msgs::LaserScan>("uav_nav/guidance/obstacle_distance", 1);
   ultrasonic_pub			  = nh.advertise<sensor_msgs::LaserScan>("uav_nav/guidance/ultrasonic",        1);
 
@@ -98,6 +100,7 @@ int sensorCb(int data_type, int data_len, char *content) // Callback to handle G
       double angle = 0;                       // Angle by which the image is rotated (based on IMU)
       double t_y = 0;                         // Number of pixels by which the image is translated
       e_vbus_index camera_id = camera_ids[i]; // API index to select sensor
+      sensor_msgs::Image left_8, right_8;
 
       switch(camera_id)
       {
@@ -135,7 +138,6 @@ int sensorCb(int data_type, int data_len, char *content) // Callback to handle G
           imshow("left", g_greyscale_image_left);
 
         // Publish left greyscale image
-      	sensor_msgs::Image left_8;
       	left_8.header.stamp = ros::Time::now();
       	left_8.header.frame_id = frame_id;
       	left_8.height = g_greyscale_image_left.rows;
@@ -145,7 +147,7 @@ int sensorCb(int data_type, int data_len, char *content) // Callback to handle G
       	left_8.step = 320;
       	left_8.data.resize(HEIGHT*WIDTH);
       	memcpy((char*)(&left_8.data[0]), g_greyscale_image_left.data, HEIGHT*WIDTH);
-      	left_image_pub.publish(left_8);
+      	//left_image_pub.publish(left_8);
       }
 
       if(data->m_greyscale_image_right[camera_id])
@@ -157,7 +159,6 @@ int sensorCb(int data_type, int data_len, char *content) // Callback to handle G
           imshow("right", g_greyscale_image_right);
 
         // Publish right greyscale image
-        sensor_msgs::Image right_8;
       	right_8.header.stamp = ros::Time::now();
       	right_8.header.frame_id = frame_id;
       	right_8.height = g_greyscale_image_right.rows;
@@ -167,8 +168,16 @@ int sensorCb(int data_type, int data_len, char *content) // Callback to handle G
       	right_8.step = 320;
       	right_8.data.resize(HEIGHT*WIDTH);
       	memcpy((char*)(&right_8.data[0]), g_greyscale_image_right.data, HEIGHT*WIDTH);
-      	right_image_pub.publish(right_8);
+      	//right_image_pub.publish(right_8);
       }
+
+      uav_nav::Images images;
+      images.header.stamp = ros::Time::now();
+      images.header.frame_id = frame_id;
+      images.left = left_8;
+      images.right = right_8;
+      images_pub.publish(images);
+
 
       //cv::waitKey(1);
     }
