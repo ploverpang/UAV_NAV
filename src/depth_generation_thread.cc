@@ -6,16 +6,8 @@ ros::Publisher laser_scan_pub;
 
 /* Global variables */
 int dimensionality = 1;
-#ifndef USE_GPU
 cv::Mat left_img1(HEIGHT, WIDTH, CV_8UC1);
-#endif
-/*cv::Mat right_img1(HEIGHT, WIDTH, CV_8UC1);
-std::string left_id, right_id;
-// Queue to only run img processing when new images arrive.
-// Can also be used to tweek parameters if queue gets too big, and it reduces overhead when using gpu.
-int img_queue = 0;*/
 // Threading related variables
-
 cv::Mat depthMap[nr_consumer];
 pthread_mutex_t img_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t wq_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -101,14 +93,6 @@ void CreateDepthImage(int thread_id, cv::Mat& L_img, cv::Mat& R_img, std::string
 	// cuda StereoBM returns an 8 bit image, while the cpu implementation returns a 16 bit deep disparity
 	left_disp.convertTo(left_disp, CV_16UC1, 16); 
     #else
-	/*cv::Ptr<cv::StereoSGBM> left_matcher  = cv::StereoSGBM::create(0,numDisp,wsize);
-	// StereoSGBM parameter setup
-	left_matcher->setP1(8*wsize*wsize);
-	left_matcher->setP2(32*wsize*wsize);
-	left_matcher->setMode(cv::StereoSGBM::MODE_SGBM);
-   	left_matcher->setPreFilterCap(21);
-	left_matcher->compute( L_img, R_img, left_disp);*/
-
 	if (wsize<5) wsize = 5;
 	cv::Ptr<cv::StereoBM> left_matcher  = cv::StereoBM::create(numDisp,wsize);
    	//left_matcher->setPreFilterCap(63);
@@ -260,22 +244,29 @@ void* producer(void*){
 				thread_args.dimension = dimensionality;
 				ROS_INFO("before producer work queue mutex");
 				pthread_mutex_lock(&wq_mutex);
+				int sem_value;
 				if (labeled_left.id.compare("front") == 0)
 				{
 					work_data[FRONT] = thread_args;
-					sem_post(&wq_semaphore[FRONT]);
+					sem_getvalue(&wq_semaphore[FRONT], &sem_value);
+					if (sem_value == 0){
+					sem_post(&wq_semaphore[FRONT]);}
 					ROS_INFO("increment work queue semaphore %i", FRONT);
 				}
 				if (labeled_left.id.compare("left") == 0)
 				{
 					work_data[LEFT] = thread_args;
-					sem_post(&wq_semaphore[LEFT]);
+					sem_getvalue(&wq_semaphore[LEFT], &sem_value);
+					if (sem_value == 0){
+					sem_post(&wq_semaphore[LEFT]);}
 					ROS_INFO("increment work queue semaphore %i", LEFT);
 				}
 				if (labeled_left.id.compare("right") == 0)
 				{
 					work_data[RIGHT] = thread_args;
-					sem_post(&wq_semaphore[RIGHT]);
+					sem_getvalue(&wq_semaphore[RIGHT], &sem_value);
+					if (sem_value == 0){
+					sem_post(&wq_semaphore[RIGHT]);}
 					ROS_INFO("increment work queue semaphore %i", RIGHT);
 				}
 				pthread_mutex_unlock(&wq_mutex);
