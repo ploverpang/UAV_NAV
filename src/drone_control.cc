@@ -73,6 +73,7 @@ void FSM()
       break;
 
     case 5: // Poor GPS health
+    {
       sensor_msgs::Joy ctrl_vel_yawrate;
       uint8_t flag = (DJISDK::VERTICAL_VELOCITY   |
                       DJISDK::HORIZONTAL_VELOCITY |
@@ -90,10 +91,11 @@ void FSM()
       if(current_gps_health > 3)
       {
         ctrl_state = 4;
-        ROS_INFO("GPS health is restored")
+        ROS_INFO("GPS health is restored");
       }
 
       break;
+    }
 
     case 6: // Landing and shutting down node
       bool landed = monitoredLanding() ? obtainControl(false) : false;
@@ -289,6 +291,7 @@ void execCmd()
   static const float max_vel       = 1.5;
   static const float target_radius = 3.0;
   float              lin_vel       = 0.0;
+  float              yawrate       = 0.0;
 
   if(steering_dir.target_dist > target_radius)
     lin_vel = max_vel;
@@ -305,13 +308,13 @@ void execCmd()
 
   if(!std::isnan(steering_dir.steering_dir))
   {
-    float yawrate = std::fabs(steering_dir.steering_dir) > MAXROTVEL ?
-                    std::copysign(steering_dir.steering_dir, MAXROTVEL) :
-                    steering_dir.steering_dir;
+    yawrate = std::fabs(steering_dir.steering_dir) > MAXROTVEL ?
+              std::copysign(steering_dir.steering_dir, MAXROTVEL) :
+              steering_dir.steering_dir;
   }
   else
   {
-    lin_vel = 0;
+    lin_vel = 0.0;
     yawrate = 0.1;
   }
 
@@ -321,12 +324,12 @@ void execCmd()
       ROS_DEBUG("Safety OK");
       break;
     case 1: // Stop
-      lin_vel = 0;
-      yawrate = 0;
+      lin_vel = 0.0;
+      yawrate = 0.0;
       ROS_ERROR("Ultrasonic topic is slowed down heavily...");
       break;
     case 2: // Rotate
-      lin_vel = 0;
+      lin_vel = 0.0;
       yawrate = 0.1;
       ROS_WARN("Object inside safety threshold");
       break;
