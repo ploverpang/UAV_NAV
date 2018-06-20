@@ -147,7 +147,7 @@ int sensorCb(int data_type, int data_len, char *content) // Callback to handle G
       	left_8.step = 320;
       	left_8.data.resize(HEIGHT*WIDTH);
       	memcpy((char*)(&left_8.data[0]), g_greyscale_image_left.data, HEIGHT*WIDTH);
-      	//left_image_pub.publish(left_8);
+      	left_image_pub.publish(left_8);
       }
 
       if(data->m_greyscale_image_right[camera_id])
@@ -168,7 +168,7 @@ int sensorCb(int data_type, int data_len, char *content) // Callback to handle G
       	right_8.step = 320;
       	right_8.data.resize(HEIGHT*WIDTH);
       	memcpy((char*)(&right_8.data[0]), g_greyscale_image_right.data, HEIGHT*WIDTH);
-      	//right_image_pub.publish(right_8);
+      	right_image_pub.publish(right_8);
       }
 
       uav_nav::Images images;

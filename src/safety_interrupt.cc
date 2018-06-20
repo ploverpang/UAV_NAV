@@ -94,7 +94,7 @@ int main(int argc, char** argv)
 	ros::NodeHandle nh;
 	ros::NodeHandle private_nh_("~");
 
-	private_nh_.param("/safety/ultrasonic_threshold",      ultrasonic_threshold,             2.f);
+	private_nh_.param("/safety/ultrasonic_threshold", ultrasonic_threshold, 2.f);
 
   ros::Subscriber ready_sub = nh.subscribe("uav_nav/dc_ready", 1, &readyCb);
   while(ros::ok() && !ready)
@@ -119,6 +119,8 @@ int main(int argc, char** argv)
 	signal_interrupt = nh.advertise<std_msgs::UInt8>("uav_nav/signal_interrupt", 1);
 
 	interrupt_signal.data = 0;
+
+	ros::spinOnce();
 
 	while(ros::ok())
 	{

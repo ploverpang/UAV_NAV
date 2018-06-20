@@ -38,9 +38,7 @@ void FSM()
       {
         bool ready = obtainControl(true) ? monitoredTakeOff() : false;
         if(ready)
-        {
           ctrl_state = 2;
-        }
         else
         {
           ROS_ERROR("Take-off failed! || Could not obtain authority.");
@@ -63,8 +61,11 @@ void FSM()
       std_msgs::Bool r;
       r.data = true;
       ready_pub.publish(r);
+      ros::spinOnce();
+
+      // This sleep gives time for the vfh node to start publishing steering directions
+      ros::Duration(1).sleep();
       ctrl_state = 4;
-      //ros::spinOnce();
       break;
     }
 
@@ -98,7 +99,9 @@ void FSM()
     }
 
     case 6: // Landing and shutting down node
-      bool landed = monitoredLanding() ? obtainControl(false) : false;
+      //bool landed = monitoredLanding() ? obtainControl(false) : false;
+      bool landed = monitoredLanding();
+      obtainControl(false);
       if(landed)
         ROS_INFO("Drone landed and control is released.\nShutting down drone_control...");
       else
@@ -189,25 +192,23 @@ bool monitoredTakeOff()
   if(!takeoffLand(dji_sdk::DroneTaskControl::Request::TASK_TAKEOFF))
     return false;
 
-  ROS_DEBUG("M100 taking off!");
+  ROS_INFO("M100 taking off!");
   ros::Duration(0.01).sleep();
   ros::spinOnce();
 
-  while(ros::Time::now() - start_time < ros::Duration(10) &&
-        flight_status != DJISDK::M100FlightStatus::M100_STATUS_IN_AIR &&
-        height < 0.7)
+  while(ros::Time::now() - start_time < ros::Duration(10) && height < 1)
   {
     ros::Duration(0.01).sleep();
     ros::spinOnce();
   }
 
-  if(flight_status != DJISDK::M100FlightStatus::M100_STATUS_IN_AIR || height < 0.7)
+  if(flight_status != DJISDK::M100FlightStatus::M100_STATUS_IN_AIR || height < 0.6)
   {
     ROS_ERROR("Take-off failed.\nHeight above takeoff: %f", height);
     return false;
   }
 
-  ROS_DEBUG("Successful take-off! Height above takeoff is: %f", height);
+  ROS_INFO("Successful take-off! Height above takeoff is: %f", height);
   ros::spinOnce();
   return true;
 }
@@ -309,7 +310,7 @@ void execCmd()
   if(!std::isnan(steering_dir.steering_dir))
   {
     yawrate = std::fabs(steering_dir.steering_dir) > MAXROTVEL ?
-              std::copysign(steering_dir.steering_dir, MAXROTVEL) :
+              std::copysign(MAXROTVEL, steering_dir.steering_dir) :
               steering_dir.steering_dir;
   }
   else
@@ -334,9 +335,6 @@ void execCmd()
       ROS_WARN("Object inside safety threshold");
       break;
   }
-
-  // for debugging
-  ROS_DEBUG("lin_vel: %f, yawrate: %f", lin_vel, yawrate);
 
   sensor_msgs::Joy ctrl_vel_yawrate;
   uint8_t flag = (DJISDK::VERTICAL_VELOCITY   |
@@ -399,7 +397,35 @@ bool setAltitude(float alt)
     ros::spinOnce();
   }
 
-  if(std::fabs(alt-height) < 0.35)
+  // Stabilization (ugly)
+  if(ros::Time::now() - start_time < ros::Duration(20))
+  {
+    static const ros::Time start_time2 = ros::Time::now();
+
+    while(ros::Time::now() - start_time2 < ros::Duration(5))
+    {
+      float vel_z = std::fabs(alt-height) > 0.25 ? std::copysign(0.25, alt-height) : alt-height;
+
+      sensor_msgs::Joy ctrl_vel_yawrate;
+      uint8_t flag = (DJISDK::VERTICAL_VELOCITY   |
+                      DJISDK::HORIZONTAL_VELOCITY |
+                      DJISDK::YAW_RATE            |
+                      DJISDK::HORIZONTAL_BODY     |
+                      DJISDK::STABLE_ENABLE
+                     );
+      ctrl_vel_yawrate.axes.push_back(0);
+      ctrl_vel_yawrate.axes.push_back(0);
+      ctrl_vel_yawrate.axes.push_back(vel_z);
+      ctrl_vel_yawrate.axes.push_back(0);
+      ctrl_vel_yawrate.axes.push_back(flag);
+
+      ctrl_vel_cmd_pub.publish(ctrl_vel_yawrate);
+
+      ros::spinOnce();
+    }
+  }
+
+  if(std::fabs(alt-height) < 0.5)
   {
     ROS_DEBUG("Drone reached altitude above takeoff: %f", height);
     return true;
