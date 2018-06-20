@@ -12,7 +12,6 @@
 #include <sensor_msgs/Joy.h>
 #include <geometry_msgs/PointStamped.h>
 #include <geometry_msgs/QuaternionStamped.h>
-#include <geometry_msgs/TwistStamped.h>
 #include <geometry_msgs/Vector3Stamped.h>
 
 // DJI OSDK
@@ -30,8 +29,8 @@
 // Initialize drone (setup, obtain control, take off)
 bool isM100();
 bool setLocalPositionRef();
-bool obtainControl(bool b);
-bool takeoffLand(int task);
+bool obtainControl(bool);
+bool takeoffLand(int);
 bool monitoredTakeOff();
 bool monitoredLanding();
 
