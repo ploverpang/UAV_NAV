@@ -5,13 +5,11 @@
 // Global variables
 ros::ServiceClient            vfh_luts;       // Service client
 ros::Publisher                steering_pub;   //
-ros::Publisher                masked_speed;   // Should we go at half speed?
 geometry_msgs::PointStamped   local_position; // Local position offset in FLU frame
 geometry_msgs::Vector3Stamped rpy;            // Roll, pitch, yaw
 geometry_msgs::Vector3Stamped velocity;       // Linear velocity
 cv::Mat                       hist_grid;      // Histogram grid 2D
 cv::Mat                       circle_mask;    // Mask used to create circular active window
-int                           target_reached = 0;
 bool                          ready          = false;
 
 int main(int argc, char** argv)
@@ -58,9 +56,8 @@ int main(int argc, char** argv)
   std::vector<float>    c;                             // Candidate directions
   float                 k_target            = 0.0;     // Target direction
   float                 k_d                 = 0.0;     // Selected direction of motion
-  float                 lin_vel             = 0.0;     //
   unsigned              alpha               = 360 / s; // Sector angle
-  bool                  red_vel             = false;   //
+  bool                  red_vel             = false;   // Flag inicating reduction needed in linear velocity
 
 
   // Histogram grid setup
@@ -101,7 +98,7 @@ int main(int argc, char** argv)
   {
     getTargetDir(alpha, FLUtarget, &k_target);
     binaryHist(s, alpha, bin_hist_high, bin_hist_low, beta, dist_scaled, enlarge, &h);
-    maskedPolarHist(alpha, radius_enlargement, MAXROTVEL, t_obst, beta, h, &red_vel, &masked_hist);
+    maskedPolarHist(alpha, radius_enlargement, t_obst, beta, h, &red_vel, &masked_hist);
     findValleyBorders(masked_hist, &k_l, &k_r);
     findCandidateDirections(s, k_target, k_l, k_r, &c);
     calculateCost(s, alpha, k_target, c, cost_params, masked_hist, &k_d);
@@ -318,7 +315,6 @@ void binaryHist(unsigned                 s,
 
 void maskedPolarHist(unsigned                    alpha,
                      float                       r_enl,
-                     float                       max_rot_vel, // Maximum rotational velocity
                      float                       t_obst,
                      const std::vector<float>    &beta,
                      const std::vector<unsigned> &h,
@@ -330,7 +326,7 @@ void maskedPolarHist(unsigned                    alpha,
   float r    = sqrt(
                 pow(velocity.vector.x,2) +
                 pow(velocity.vector.y,2)
-                   ) / max_rot_vel;           // Minimum steering radius assuming it is the same for both directions
+                   ) / MAXROTVEL;             // Minimum steering radius assuming it is the same for both directions
   float back = wrapToPi(yaw-C_PI);            // Opposite direction of heading
   float dxr  = r * sin(yaw);                  // X coord. of right trajectory circle
   float dyr  = r * cos(yaw);                  // Y coord. of right trajectory circle

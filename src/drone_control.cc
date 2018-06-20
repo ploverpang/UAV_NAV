@@ -5,28 +5,33 @@ ros::ServiceClient               query_version_service;
 ros::ServiceClient               set_loc_pos_ref_service;
 ros::ServiceClient               sdk_ctrl_authority_service;
 ros::ServiceClient               drone_task_service;
-ros::Publisher 				           ready_pub;                         //
+ros::Publisher 				           ready_pub;                         // Notifies other nodes to start
 ros::Publisher 				           ctrl_vel_cmd_pub;                  // Velocity control command sent to the FC
 ros::Publisher 				           rpy_pub;                           // Publish roll, pitch, yaw in radians
 geometry_msgs::PointStamped      local_position;                    // Local position offset in FLU frame
-geometry_msgs::TwistStamped	     vel_cmd;
 geometry_msgs::QuaternionStamped attitude_state;
+geometry_msgs::Vector3Stamped    loc_rpy;
 uav_nav::Steering                steering_dir;
 float	 		                       altitude;
 float                            height                      = 0;
 uint8_t                          flight_status               = 255; // Enum representing drone state upon take off
 uint8_t                          current_gps_health          = 0;   // Number of GPS satellite connections
 int 				                     ctrl_state	          	     = 0;   // State machine controller
-geometry_msgs::Vector3Stamped    loc_rpy;
 
 
 void FSM()
 {
   switch(ctrl_state) {
-    case 0:
+    case 0: // Initial state which busy waits for 10 secs
+      static const ros::Time start_time = ros::Time::now();
+      while(ros::Time::now() - start_time < ros::Duration(10))
+      {
+        ros::spinOnce();
+      }
+      ctrl_state = 1;
       break;
 
-    case 1:
+    case 1: // Take off
       if(isM100() && setLocalPositionRef())
       {
         bool ready = obtainControl(true) ? monitoredTakeOff() : false;
@@ -47,7 +52,7 @@ void FSM()
       }
       break;
 
-    case 2:
+    case 2: // Reach desired height above takeoff
       ctrl_state = setAltitude(altitude) ? 3 : 90;
       break;
 
@@ -65,7 +70,7 @@ void FSM()
       execCmd();
       break;
 
-    case 90:
+    case 90: // Landing and shutting down node
       bool landed = monitoredLanding() ? obtainControl(false) : false;
       if(landed)
       {
@@ -86,7 +91,6 @@ int main(int argc, char** argv)
   ros::init(argc, argv, "drone_control");
   ros::NodeHandle nh;
   ros::NodeHandle private_nh_("~");
-  ros::Duration(10).sleep();
 
   // Parameters
   private_nh_.param("/drone_control/alt", altitude, 2.5f);
@@ -103,13 +107,13 @@ int main(int argc, char** argv)
   ros::Subscriber attitude_sub      = nh.subscribe("dji_sdk/attitude",             1, &attitudeCb);
   ros::Subscriber height_takeoff    = nh.subscribe("dji_sdk/height_above_takeoff", 1, &heightCb);
   ros::Subscriber loc_pos_sub       = nh.subscribe("dji_sdk/local_position",       1, &localPositionCb);
-  ros::Subscriber steering_dir_sub  = nh.subscribe("uav_nav/steering_dir",         1, &steeringDirCb);
   ros::Subscriber interrupt_pub     = nh.subscribe("uav_nav/signal_interrupt",     1, &interruptCb);
+  ros::Subscriber steering_dir_sub  = nh.subscribe("uav_nav/steering_dir",         1, &steeringDirCb);
 
   // Publishers
-  ready_pub         = nh.advertise<std_msgs::Bool>("uav_nav/dc_ready", 1);
-  ctrl_vel_cmd_pub  = nh.advertise<sensor_msgs::Joy>("dji_sdk/flight_control_setpoint_generic", 1);
-  rpy_pub           = nh.advertise<geometry_msgs::Vector3Stamped>("uav_nav/roll_pitch_yaw", 1);
+  ready_pub         = nh.advertise<std_msgs::Bool>               ("uav_nav/dc_ready",                        1);
+  ctrl_vel_cmd_pub  = nh.advertise<sensor_msgs::Joy>             ("dji_sdk/flight_control_setpoint_generic", 1);
+  rpy_pub           = nh.advertise<geometry_msgs::Vector3Stamped>("uav_nav/roll_pitch_yaw",                  1);
 
   while(ros::ok())
   {
@@ -226,7 +230,7 @@ void GPSHealthCb(const std_msgs::UInt8::ConstPtr& msg)
 
   if (current_gps_health <= 3)
   {
-    ctrl_state = 0;
+    ctrl_state = 0; //TODO redo state control
     ROS_ERROR("Cannot execute local position control. Not enough GPS satellites");
   }
 }
@@ -248,7 +252,7 @@ void localPositionCb(const geometry_msgs::PointStamped::ConstPtr& msg)
   local_position = *msg;
 }
 
-void interruptCb(const std_msgs::UInt8::ConstPtr& msg) {
+void interruptCb(const std_msgs::UInt8::ConstPtr& msg) { //TODO redo state control
   switch (msg->data)
   {
     case 0:
@@ -276,23 +280,27 @@ void execCmd()
 {
   static const float max_vel       = 1.5;
   static const float target_radius = 3.0;
-  float lin_vel = 0.0;
+  float              lin_vel       = 0.0;
 
   if(steering_dir.target_dist > target_radius)
     lin_vel = max_vel;
   else if (steering_dir.target_dist > 1.5)
     lin_vel = (steering_dir.target_dist/target_radius) * max_vel;
-  else{
-    //TODO LAND
+  else
+  {
+    ctrl_state = 90;
+    return;
   }
-  //TODO check if lin_vel needs to be halfed
+
+  if(steering_dir.reduce_velocity)
+    lin_vel *= 0.5;
 
   float yawrate = std::fabs(steering_dir.steering_dir) > MAXROTVEL ?
                   std::copysign(steering_dir.steering_dir, MAXROTVEL) :
                   steering_dir.steering_dir;
 
-
-  ROS_INFO("lin_vel: %f, yawrate: %f", lin_vel, yawrate);
+  // for debugging
+  ROS_DEBUG("lin_vel: %f, yawrate: %f", lin_vel, yawrate);
 
   sensor_msgs::Joy ctrl_vel_yawrate;
   uint8_t flag = (DJISDK::VERTICAL_VELOCITY   |
@@ -301,44 +309,19 @@ void execCmd()
                   DJISDK::HORIZONTAL_BODY     |
                   DJISDK::STABLE_ENABLE
                  );
-  switch(ctrl_state)
-  {
-    case 0:	break;
-    case 1: //Regular
-      ctrl_vel_yawrate.axes.push_back(lin_vel);
-      ctrl_vel_yawrate.axes.push_back(0);
-      ctrl_vel_yawrate.axes.push_back(0);
-      ctrl_vel_yawrate.axes.push_back(yawrate);
-      ctrl_vel_yawrate.axes.push_back(flag);
-
-      ctrl_vel_cmd_pub.publish(ctrl_vel_yawrate);
-      break;
-    case 2:	//Rotate
-      ctrl_vel_yawrate.axes.push_back(0);
-      ctrl_vel_yawrate.axes.push_back(0);
-      ctrl_vel_yawrate.axes.push_back(0);
-      ctrl_vel_yawrate.axes.push_back(1);
-      ctrl_vel_yawrate.axes.push_back(flag);
-
-      ctrl_vel_cmd_pub.publish(ctrl_vel_yawrate);
-      break;
-    case 3: //Half speed
-      ctrl_vel_yawrate.axes.push_back(lin_vel/2);
-      ctrl_vel_yawrate.axes.push_back(0);
-      ctrl_vel_yawrate.axes.push_back(0);
-      ctrl_vel_yawrate.axes.push_back(yawrate);
-      ctrl_vel_yawrate.axes.push_back(flag);
-
-      ctrl_vel_cmd_pub.publish(ctrl_vel_yawrate);
-      break;
-  }
+  ctrl_vel_yawrate.axes.push_back(lin_vel);
+  ctrl_vel_yawrate.axes.push_back(0);
+  ctrl_vel_yawrate.axes.push_back(0);
+  ctrl_vel_yawrate.axes.push_back(yawrate);
+  ctrl_vel_yawrate.axes.push_back(flag);
+  ctrl_vel_cmd_pub.publish(ctrl_vel_yawrate);
 }
 
 void quatToEuler()
 {
   geometry_msgs::Vector3Stamped rpy;
   rpy.header.stamp    = ros::Time::now();
-  rpy.header.frame_id = "RPY";
+  rpy.header.frame_id = "RPY_FLU";
 
   tf::Quaternion q = tf::Quaternion(attitude_state.quaternion.x,
                                     attitude_state.quaternion.y,
