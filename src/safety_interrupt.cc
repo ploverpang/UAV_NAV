@@ -146,7 +146,7 @@ int main(int argc, char** argv)
                   laser_scan_counter,
                   local_pos_counter);*/
       }
-  		else
+			else
       {
         interrupt_signal.data = 0;
       }

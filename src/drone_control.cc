@@ -16,6 +16,7 @@ float	 		                       altitude;
 float                            height                      = 0;
 uint8_t                          flight_status               = 255; // Enum representing drone state upon take off
 uint8_t                          current_gps_health          = 0;   // Number of GPS satellite connections
+uint8_t                          interrupt_flag              = 0;   //
 int 				                     ctrl_state	          	     = 0;   // State machine controller
 
 
@@ -28,7 +29,8 @@ void FSM()
       {
         ros::spinOnce();
       }
-      ctrl_state = 1;
+      if (current_gps_health > 3)
+        ctrl_state = 1;
       break;
 
     case 1: // Take off
@@ -53,7 +55,7 @@ void FSM()
       break;
 
     case 2: // Reach desired height above takeoff
-      ctrl_state = setAltitude(altitude) ? 3 : 90;
+      ctrl_state = setAltitude(altitude) ? 3 : 6;
       break;
 
     case 3:
@@ -62,7 +64,7 @@ void FSM()
       r.data = true;
       ready_pub.publish(r);
       ctrl_state = 4;
-      ros::spinOnce();
+      //ros::spinOnce();
       break;
     }
 
@@ -70,16 +72,35 @@ void FSM()
       execCmd();
       break;
 
-    case 90: // Landing and shutting down node
+    case 5: // Poor GPS health
+      sensor_msgs::Joy ctrl_vel_yawrate;
+      uint8_t flag = (DJISDK::VERTICAL_VELOCITY   |
+                      DJISDK::HORIZONTAL_VELOCITY |
+                      DJISDK::YAW_RATE            |
+                      DJISDK::HORIZONTAL_BODY     |
+                      DJISDK::STABLE_ENABLE
+                     );
+      ctrl_vel_yawrate.axes.push_back(0);
+      ctrl_vel_yawrate.axes.push_back(0);
+      ctrl_vel_yawrate.axes.push_back(0);
+      ctrl_vel_yawrate.axes.push_back(0);
+      ctrl_vel_yawrate.axes.push_back(flag);
+      ctrl_vel_cmd_pub.publish(ctrl_vel_yawrate);
+
+      if(current_gps_health > 3)
+      {
+        ctrl_state = 4;
+        ROS_INFO("GPS health is restored")
+      }
+
+      break;
+
+    case 6: // Landing and shutting down node
       bool landed = monitoredLanding() ? obtainControl(false) : false;
       if(landed)
-      {
         ROS_INFO("Drone landed and control is released.\nShutting down drone_control...");
-      }
       else
-      {
         ROS_ERROR("Landing failed! Take over control manually.");
-      }
 
       ros::shutdown();
       break;
@@ -228,10 +249,10 @@ void GPSHealthCb(const std_msgs::UInt8::ConstPtr& msg)
 {
   current_gps_health = msg->data;
 
-  if (current_gps_health <= 3)
+  if (current_gps_health <= 3 && ctrl_state == 4)
   {
-    ctrl_state = 0; //TODO redo state control
-    ROS_ERROR("Cannot execute local position control. Not enough GPS satellites");
+    ctrl_state = 5;
+    ROS_ERROR("Insufficient GPS health");
   }
 }
 
@@ -252,22 +273,9 @@ void localPositionCb(const geometry_msgs::PointStamped::ConstPtr& msg)
   local_position = *msg;
 }
 
-void interruptCb(const std_msgs::UInt8::ConstPtr& msg) { //TODO redo state control
-  switch (msg->data)
-  {
-    case 0:
-      ctrl_state = 1;
-      ROS_DEBUG("Safety OK");
-      break;
-    case 1:
-      ctrl_state = 0;
-      ROS_ERROR("System malfunction");
-      break;
-    case 2:
-      ROS_WARN("Object inside safety threshold");
-      ctrl_state = 2;
-      break;
-  }
+void interruptCb(const std_msgs::UInt8::ConstPtr& msg)
+{
+  interrupt_flag = msg->data;
 }
 
 void steeringDirCb(const uav_nav::Steering::ConstPtr& msg)
@@ -288,16 +296,41 @@ void execCmd()
     lin_vel = (steering_dir.target_dist/target_radius) * max_vel;
   else
   {
-    ctrl_state = 90;
+    ctrl_state = 6;
     return;
   }
 
   if(steering_dir.reduce_velocity)
     lin_vel *= 0.5;
 
-  float yawrate = std::fabs(steering_dir.steering_dir) > MAXROTVEL ?
-                  std::copysign(steering_dir.steering_dir, MAXROTVEL) :
-                  steering_dir.steering_dir;
+  if(!std::isnan(steering_dir.steering_dir))
+  {
+    float yawrate = std::fabs(steering_dir.steering_dir) > MAXROTVEL ?
+                    std::copysign(steering_dir.steering_dir, MAXROTVEL) :
+                    steering_dir.steering_dir;
+  }
+  else
+  {
+    lin_vel = 0;
+    yawrate = 0.1;
+  }
+
+  switch (interrupt_flag)
+  {
+    case 0:
+      ROS_DEBUG("Safety OK");
+      break;
+    case 1: // Stop
+      lin_vel = 0;
+      yawrate = 0;
+      ROS_ERROR("Ultrasonic topic is slowed down heavily...");
+      break;
+    case 2: // Rotate
+      lin_vel = 0;
+      yawrate = 0.1;
+      ROS_WARN("Object inside safety threshold");
+      break;
+  }
 
   // for debugging
   ROS_DEBUG("lin_vel: %f, yawrate: %f", lin_vel, yawrate);
