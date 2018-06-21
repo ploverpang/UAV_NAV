@@ -17,7 +17,7 @@
 
 #define CAMERAFOV_X 60
 #define CAMERAFOV_Y 56
-#define CLEARANCE 2 
+#define CLEARANCE 2
 enum representation {ONE_DIMENSIONAL = 1, TWO_DIMENSIONAL = 2};
 
 float findsmallestX(std::vector<int> arr, int numberOfArrayElements, int stopNumber);
@@ -29,6 +29,6 @@ void maskOutliers(const cv::Mat& src_img, cv::Mat& dst_img, const cv::Mat& prevF
 void legacyRoundMorph(cv::Mat& src_img, int byNumber, int xy);
 void roundMorph(cv::Mat& src_img, cv::Mat& dst_img, int xy, int threshold);
 void dispToMeter(cv::Mat src_img, cv::Mat& dst_img);
-void fovReduction(cv::Mat src_img, cv::Mat& dst_img);
+void fovReduction(float alt, cv::Mat src_img, cv::Mat& dst_img);
 
 #endif // UAVNAV_DEPTHGENERATION_H_
