@@ -11,7 +11,6 @@ cv::Mat                       circle_mask;    // Mask used to create circular ac
 float                 k_target            = 0.0;     // Target direction
 int targetReached = 0;
   cv::Mat plotIMG;
-float t_obst      = 60.0;      // Obstacle threshold
 
 
 int main(int argc, char** argv)
@@ -30,8 +29,11 @@ int main(int argc, char** argv)
   std::vector<float>    target_xy;                     // Target for the drone
   static const float    cost_default[]      = {5,2,2}; // Default cost parameters
   static const float    target_default[]    = {0,0};   // Default target [x, y]
+  float                 t_obst;                        // Obstacle threshold
+
 
   // Load parameters
+  private_nh_.param("/vfh/t_obst",      t_obst,             60.f);
   private_nh_.param("/vfh/s",           s,                  72);
   private_nh_.param("/vfh/t_high",      bin_hist_high,      20.5f);
   private_nh_.param("/vfh/t_low",       bin_hist_low,       15.f);
