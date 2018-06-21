@@ -6,6 +6,7 @@
 cv::Mat left_img1(HEIGHT, WIDTH, CV_8UC1);
 cv::Mat right_img1(HEIGHT, WIDTH, CV_8UC1);
 std::string left_id, right_id;
+float height = 0;
 
 // Test variables
 	int wsize =5;
@@ -17,6 +18,11 @@ std::string left_id, right_id;
 	int legacysize = 1;
 	int maxsize = 70800;
 	cv::Mat reference, localref;
+
+void heightCb(const std_msgs::Float32::ConstPtr& msg)
+{
+  height = msg->data;
+}
 
 
 void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img, int dimensionality){
@@ -49,7 +55,7 @@ void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img, int dime
 	// Preparing disparity map for further processing
 	left_disp.setTo(0, left_disp < 0);
 	if (dimensionality == ONE_DIMENSIONAL){
-		fovReduction(left_disp, left_disp);
+		fovReduction(height, left_disp, left_disp);
 	}
   dispToMeter(left_disp, meter_map);
 
@@ -77,6 +83,8 @@ void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img, int dime
 int main(int argc, char** argv) {
 	ros::init(argc, argv, "parameter_tuning");
 	ros::NodeHandle nh;
+
+  ros::Subscriber height_takeoff = nh.subscribe("dji_sdk/height_above_takeoff", 1, &heightCb);
 
 	cv::Mat depthMap;
 	reference = cv::imread("field_set/depth_map.png", 0);

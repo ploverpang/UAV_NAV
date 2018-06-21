@@ -12,6 +12,7 @@
 
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/LaserScan.h> //obstacle distance && ultrasonic
+#include <std_msgs/Float32.h>
 
 #include "uav_nav/uav_nav.h"
 
