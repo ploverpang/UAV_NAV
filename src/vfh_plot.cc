@@ -292,7 +292,7 @@ void binaryHist(unsigned                 s,
                 std::vector<unsigned>    *h
                )
 {
-  float polar[s] = {0};
+  float polar[72] = {0};
   for(int i = 0; i < hist_grid.rows; ++i)
   {
     for(int j = 0; j < hist_grid.cols; ++j)
