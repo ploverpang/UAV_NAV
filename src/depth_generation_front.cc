@@ -9,7 +9,7 @@ ros::Publisher laser_scan_pub;
 cv::Mat left_img1(HEIGHT, WIDTH, CV_8UC1);
 cv::Mat right_img1(HEIGHT, WIDTH, CV_8UC1);
 std::string left_id, right_id;
-int intensityParam;
+float intensity;
 // Queue to only run img processing when new images arrive.
 // Can also be used to tweek parameters if queue gets too big, and it reduces overhead when using gpu.
 int img_queue = 0;
@@ -200,7 +200,7 @@ void DepthProcessing(cv::Mat src_img){
 	for (int i=0; i < numSlices_x; i++){
 		if (depthGridValues[i][0][0]<=scans.range_max){
 			scans.intensities[i] = gridConfidence[i][0][0];
-			if (gridConfidence[i][0][0] > intensityParam)
+			if (gridConfidence[i][0][0] > intensity)
 				scans.ranges[i] = depthGridValues[i][0][0];
 			else
 				scans.ranges[i] = 0.0;
@@ -219,13 +219,13 @@ void heightCb(const std_msgs::Float32::ConstPtr& msg)
 int main(int argc, char** argv) {
 	ros::init(argc, argv, "depth_generation_front");
 	ros::NodeHandle nh;
-	ros::NodeHandle nh_private;
+	ros::NodeHandle private_nh_("~");
 
 	left_image_sub  = nh.subscribe("uav_nav/guidance/left_image",  1, left_image_callback);
 	right_image_sub = nh.subscribe("uav_nav/guidance/right_image", 1, right_image_callback);
-  	ros::Subscriber height_takeoff = nh.subscribe("dji_sdk/height_above_takeoff", 1, &heightCb);
+  ros::Subscriber height_takeoff = nh.subscribe("dji_sdk/height_above_takeoff", 1, &heightCb);
 
-	intensityParam = nh_private.param("/depth_generation/intensity", intensity, 0.1f);
+	private_nh_.param("/depth_generation/intensity", intensity, 0.1f);
 
 	laser_scan_pub = nh.advertise<sensor_msgs::LaserScan>("uav_nav/laser_scan_from_depthIMG", 1);
 
