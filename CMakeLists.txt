@@ -87,12 +87,12 @@ target_link_libraries(sensor_feedback
   usb-1.0
   yaml-cpp)
 
-add_executable(depth_generation_thread
-  src/depth_generation_thread.cc
-  src/supporting_alg_thread.cc)
-target_link_libraries(depth_generation_thread
-  ${OpenCV_LIBS}
-  ${catkin_LIBRARIES})
+#add_executable(depth_generation_thread
+#  src/depth_generation_thread.cc
+#  src/supporting_alg_thread.cc)
+#target_link_libraries(depth_generation_thread
+#  ${OpenCV_LIBS}
+#  ${catkin_LIBRARIES})
 
 add_executable(depth_generation_front
   src/depth_generation_front.cc
@@ -131,10 +131,10 @@ target_link_libraries(vfh_server
   ${OpenCV_LIBS})
 add_dependencies(vfh_server uav_nav_gencpp)
 
-#add_executable(vfh_plot src/vfh_plot.cc)
-#target_link_libraries(vfh_plot
-#  ${catkin_LIBRARIES}
-#  ${OpenCV_LIBS})
+add_executable(vfh_plot src/vfh_plot.cc)
+target_link_libraries(vfh_plot
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBS})
 
 add_executable(parameter_tuning
   src/parameter.cc
