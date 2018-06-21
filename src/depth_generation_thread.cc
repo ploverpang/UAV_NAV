@@ -1,74 +1,71 @@
 #include "uav_nav/depth_generation_thread.h"
 
-ros::Subscriber left_image_sub;
-ros::Subscriber right_image_sub;
+ros::Subscriber image_sub;
+ros::Subscriber altitude_takeoff;
 ros::Publisher laser_scan_pub;
 
 /* Global variables */
 int dimensionality = 1;
-cv::Mat left_img1(HEIGHT, WIDTH, CV_8UC1);
+float intensity;
+float altitude = 2.5;
+cv::Mat front_img(HEIGHT, WIDTH, CV_8UC1);
 // Threading related variables
-cv::Mat depthMap[nr_consumer];
-pthread_mutex_t img_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t wq_mutex = PTHREAD_MUTEX_INITIALIZER;
-sem_t wq_semaphore[nr_consumer];
-// 3 image procesing thread + 1 work packager
-pthread_t producer_id;
-pthread_t consumer_id[nr_consumer];
-void* status;
-thread_args_t work_data[nr_consumer];
-std::list<labeled_img_t>left_img_list, right_img_list;
+cv::Mat depthMap[NR_CONSUMER];
+pthread_mutex_t img_mutex[NR_CONSUMER];
+sem_t wq_semaphore[NR_CONSUMER];
+pthread_t consumer_id[NR_CONSUMER];
+thread_args_t work_data[NR_CONSUMER];
 
 
 /* left greyscale image */
-void left_image_callback(const sensor_msgs::ImageConstPtr& left_img){
-	labeled_img_t left_labeled;
-	uchar arr[HEIGHT*WIDTH];
-	int size = sizeof(arr)/sizeof(*arr);
+void image_callback(const uav_nav::Images img){
+	const int size = HEIGHT*WIDTH;
+	uchar arr_l[size], arr_r[size];
 	for (int i = 0; i < size; i++){
-		arr[i] = left_img->data[i];	
+		arr_l[i] = img.left.data[i];
+		arr_r[i] = img.right.data[i];	
 	}
-	cv::Mat buffer(HEIGHT, WIDTH, CV_8UC1); // This avoids artifacts that appear when modifying global variables directly
-	buffer.data = arr;
-	buffer.copyTo(left_labeled.img);
-	left_labeled.id = left_img->header.frame_id;
-	#ifndef USE_GPU
-	if(left_labeled.id=="front")buffer.copyTo(left_img1);
-	#endif
-	ROS_INFO("before left_image_callback mutex");
-	pthread_mutex_lock(&img_mutex);
-	left_img_list.push_front(left_labeled);
-	if(left_img_list.size()>nr_consumer){
-		left_img_list.pop_back();
+	cv::Mat buffer_l(HEIGHT, WIDTH, CV_8UC1); // This avoids artifacts that appear when modifying global variables directly
+	cv::Mat buffer_r(HEIGHT, WIDTH, CV_8UC1); // This avoids artifacts that appear when modifying global variables directly
+	buffer_l.data = arr_l;
+	buffer_r.data = arr_r;
+	thread_args_t thread_args;
+	buffer_l.copyTo(thread_args.img_l);
+	buffer_r.copyTo(thread_args.img_r);
+	thread_args.id = img.header.frame_id;
+
+	int sem_value;
+	if (thread_args.id.compare("front")==0){
+		if (pthread_mutex_trylock(&img_mutex[FRONT]) == 0){
+			work_data[FRONT] = thread_args;
+			sem_getvalue(&wq_semaphore[FRONT], &sem_value);
+			if (!sem_value) sem_post(&wq_semaphore[FRONT]);
+			pthread_mutex_unlock(&img_mutex[FRONT]);
+		}
+		#ifndef USE_GPU
+		thread_args.img_l.copyTo(front_img);
+		#endif
 	}
-	pthread_mutex_unlock(&img_mutex);
-	ROS_INFO("after left_image_callback mutex");
+	if (thread_args.id.compare("left")==0){
+		if (pthread_mutex_trylock(&img_mutex[LEFT]) == 0){
+			work_data[LEFT] = thread_args;
+			sem_getvalue(&wq_semaphore[LEFT], &sem_value);
+			if (!sem_value) sem_post(&wq_semaphore[LEFT]);
+			pthread_mutex_unlock(&img_mutex[LEFT]);
+		}
+	}
+	if (thread_args.id.compare("right")==0){
+		if (pthread_mutex_trylock(&img_mutex[RIGHT]) == 0){
+			work_data[RIGHT] = thread_args;
+			sem_getvalue(&wq_semaphore[RIGHT], &sem_value);
+			if (!sem_value) sem_post(&wq_semaphore[RIGHT]);
+			pthread_mutex_unlock(&img_mutex[RIGHT]);
+		}
+	}
 }
 
-/* right greyscale image */
-void right_image_callback(const sensor_msgs::ImageConstPtr& right_img){
-	labeled_img_t right_labeled;
-	uchar arr[HEIGHT*WIDTH];
-	int size = sizeof(arr)/sizeof(*arr);
-	for (int i = 0; i < size; i++){
-		arr[i] = right_img->data[i];	
-	}
-	cv::Mat buffer(HEIGHT, WIDTH, CV_8UC1);
-	buffer.data = arr;
-	buffer.copyTo(right_labeled.img);
 
-	right_labeled.id = right_img->header.frame_id;
-	ROS_INFO("before right_image_callback mutex");
-	pthread_mutex_lock(&img_mutex);
-	right_img_list.push_front(right_labeled);
-	if(right_img_list.size()>nr_consumer){
-		right_img_list.pop_back();
-	}
-	pthread_mutex_unlock(&img_mutex);
-	ROS_INFO("after right_image_callback mutex");
-}
-
-void CreateDepthImage(int thread_id, cv::Mat& L_img, cv::Mat& R_img, std::string frame_id, cv::Mat& dst_img, int dimensionality){
+void CreateDepthImage(int thread_id, cv::Mat& L_img, cv::Mat& R_img, std::string frame_id, cv::Mat& dst_img){
 
 	if( L_img.empty() || R_img.empty() ) return;
 
@@ -78,7 +75,7 @@ void CreateDepthImage(int thread_id, cv::Mat& L_img, cv::Mat& R_img, std::string
 	cv::Mat left_disp, masked_map, meter_map, out_img;
 
 	// Variables keeping track of previous frame and frameID
-	static cv::Mat frameBuffer_sgbm[nr_consumer];
+	static cv::Mat frameBuffer_sgbm[NR_CONSUMER];
 
 	#ifdef USE_GPU
 	if (wsize<5) wsize = 5;
@@ -110,7 +107,7 @@ void CreateDepthImage(int thread_id, cv::Mat& L_img, cv::Mat& R_img, std::string
 	// Preparing disparity map for further processing
 	left_disp.setTo(0, left_disp < 0);
 	if (dimensionality == ONE_DIMENSIONAL){
-		fovReduction(left_disp, left_disp);
+		fovReduction(altitude, left_disp, left_disp);
 	}
 
 	// Dispraity map processing
@@ -208,7 +205,7 @@ void DepthProcessing(cv::Mat src_img, std::string frame_id){
 	for (int i=0; i < numSlices_x; i++){
 		if (depthGridValues[i][0][0]<=scans.range_max){
 			scans.intensities[i] = gridConfidence[i][0][0];
-			if (gridConfidence[i][0][0] > 0.1)
+			if (gridConfidence[i][0][0] > intensity)
 				scans.ranges[i] = depthGridValues[i][0][0];
 			else
 				scans.ranges[i] = 0.0;
@@ -219,78 +216,15 @@ void DepthProcessing(cv::Mat src_img, std::string frame_id){
 	return;
 }
 
-void* producer(void*){
-	while(ros::ok()){
-		if (left_img_list.size() != 0 && right_img_list.size() != 0)
-		{
-			labeled_img_t labeled_left, labeled_right;
-			ROS_INFO("before producer labeled image mutex");
-			pthread_mutex_lock(&img_mutex);
-			labeled_left.id = left_img_list.front().id;
-			labeled_right.id = right_img_list.front().id;
-			left_img_list.front().img.copyTo(labeled_left.img);
-			right_img_list.front().img.copyTo(labeled_right.img);
-			left_img_list.pop_front();
-			right_img_list.pop_front();
-			pthread_mutex_unlock(&img_mutex);
-			ROS_INFO("after producer labeled image mutex");
-
-			if (labeled_left.id.compare(labeled_right.id)==0)
-			{
-				thread_args_t thread_args;
-				thread_args.id = labeled_left.id;
-				labeled_left.img.copyTo(thread_args.img_l);
-				labeled_right.img.copyTo(thread_args.img_r);
-				thread_args.dimension = dimensionality;
-				ROS_INFO("before producer work queue mutex");
-				pthread_mutex_lock(&wq_mutex);
-				int sem_value;
-				if (labeled_left.id.compare("front") == 0)
-				{
-					work_data[FRONT] = thread_args;
-					sem_getvalue(&wq_semaphore[FRONT], &sem_value);
-					if (sem_value == 0){
-					sem_post(&wq_semaphore[FRONT]);}
-					ROS_INFO("increment work queue semaphore %i", FRONT);
-				}
-				if (labeled_left.id.compare("left") == 0)
-				{
-					work_data[LEFT] = thread_args;
-					sem_getvalue(&wq_semaphore[LEFT], &sem_value);
-					if (sem_value == 0){
-					sem_post(&wq_semaphore[LEFT]);}
-					ROS_INFO("increment work queue semaphore %i", LEFT);
-				}
-				if (labeled_left.id.compare("right") == 0)
-				{
-					work_data[RIGHT] = thread_args;
-					sem_getvalue(&wq_semaphore[RIGHT], &sem_value);
-					if (sem_value == 0){
-					sem_post(&wq_semaphore[RIGHT]);}
-					ROS_INFO("increment work queue semaphore %i", RIGHT);
-				}
-				pthread_mutex_unlock(&wq_mutex);
-				ROS_INFO("after producer work queue mutex");
-			}
-		}
-		sleep(0.0001);
-	}
-}
-
 void* consumer(void* thread_id_v){
 	int thread_id = *((int *) thread_id_v);
-	delete thread_id_v;
-	ROS_INFO("thread started with ID: %i", thread_id);
+	delete (int*)thread_id_v;
 	while(ros::ok()){
-		ROS_INFO("waiting for work queue semaphore %i", thread_id);
 		sem_wait(&wq_semaphore[thread_id]);
-		ROS_INFO("received work queue semaphore %i", thread_id);
-		ROS_INFO("before consumer %i work queue mutex", thread_id);
-		pthread_mutex_lock(&wq_mutex);
+		pthread_mutex_lock(&img_mutex[thread_id]);
 		thread_args_t *thread_args = new thread_args_t(work_data[thread_id]);
-		pthread_mutex_unlock(&wq_mutex);
-		ROS_INFO("after consumer %i work queue mutex", thread_id);
-		CreateDepthImage(thread_id, thread_args->img_l, thread_args->img_r, thread_args->id, thread_args->dst, thread_args->dimension);
+		pthread_mutex_unlock(&img_mutex[thread_id]);
+		CreateDepthImage(thread_id, thread_args->img_l, thread_args->img_r, thread_args->id, thread_args->dst);
 
 		#ifndef USE_GPU
 		thread_args->dst.copyTo(depthMap[thread_id]); // Copy depth map to output
@@ -301,12 +235,20 @@ void* consumer(void* thread_id_v){
 	pthread_exit(NULL);
 }
 
+void altitudeCb(const std_msgs::Float32::ConstPtr& msg)
+{
+  altitude = msg->data;
+}
+
 int main(int argc, char** argv) {
 	ros::init(argc, argv, "depth_generation_front");
 	ros::NodeHandle nh;
+	ros::NodeHandle private_nh_("~");
 
-	left_image_sub  = nh.subscribe("uav_nav/guidance/left_image",  1, left_image_callback);
-	right_image_sub = nh.subscribe("uav_nav/guidance/right_image", 1, right_image_callback);
+	image_sub = nh.subscribe("uav_nav/images", 3, image_callback);
+	//altitude_takeoff = nh.subscribe("dji_sdk/height_above_takeoff", 1, &altitudeCb);
+
+	private_nh_.param("/depth_generation/intensity", intensity, 0.1f);
 
 	laser_scan_pub = nh.advertise<sensor_msgs::LaserScan>("uav_nav/laser_scan_from_depthIMG_debug", 1);
 
@@ -318,12 +260,11 @@ int main(int argc, char** argv) {
 		ROS_INFO("without CUDA suport");
 	#endif
 
-	for (int i=0; i<nr_consumer; i++){
+	for (int i=0; i<NR_CONSUMER; i++){
 		 sem_init(&wq_semaphore[i], 0, 0);
+		 img_mutex[i] = PTHREAD_MUTEX_INITIALIZER;
 	}
-	int err = pthread_create(&producer_id, NULL, producer, NULL);
-	if(err){return 0;}
-	for (int i = 0; i < 1; i++)
+	for (int i = 0; i < NR_CONSUMER; i++)
 	{
 		int *k = new int(i);
 		int response = pthread_create(&consumer_id[i], NULL, consumer, k);
@@ -332,26 +273,19 @@ int main(int argc, char** argv) {
 
 	while(ros::ok()) {
 		#ifndef USE_GPU
-		for (int i=0; i<1; i++){
-		if (!depthMap[i].empty()){
-		imshow("Depth image in meters front(scaled by 10x)", depthMap[i]*10);
-		} 
-		/*cv::Mat fov;
-		fovReduction(left_img1, fov);
-		imshow("fov_front,", fov);*/
-		cv::Mat show = work_data[0].img_l;
-		if (!show.empty()){imshow("asdas", show);}
-		cv::waitKey(1);
+		for (int i=0; i<NR_CONSUMER; i++){
+			if (!depthMap[i].empty()){
+				std::string name = "Depth image in meters front(scaled by 10x)" + std::to_string(i);
+				imshow(name, depthMap[i]*10);
+			}
 		}
+		cv::Mat fov;
+		fovReduction(altitude, front_img, fov);
+		imshow("fov_front,", fov);
+		cv::waitKey(1);
 		#endif
 
 		ros::spinOnce();
-	}
-
-	err = pthread_join(producer_id, &status);
-	for (int i = 0; i < nr_consumer; i++)
-	{
-		int response = pthread_join(consumer_id[i], &status);
 	}
 
 	return 0;

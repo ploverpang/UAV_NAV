@@ -13,7 +13,7 @@ float intensity;
 // Queue to only run img processing when new images arrive.
 // Can also be used to tweek parameters if queue gets too big, and it reduces overhead when using gpu.
 int img_queue = 0;
-float height = 0;
+float height = 2.5;
 
 /* left greyscale image */
 void left_image_callback(const sensor_msgs::ImageConstPtr& left_img){
@@ -223,7 +223,7 @@ int main(int argc, char** argv) {
 
 	left_image_sub  = nh.subscribe("uav_nav/guidance/left_image",  1, left_image_callback);
 	right_image_sub = nh.subscribe("uav_nav/guidance/right_image", 1, right_image_callback);
-  ros::Subscriber height_takeoff = nh.subscribe("dji_sdk/height_above_takeoff", 1, &heightCb);
+  //ros::Subscriber height_takeoff = nh.subscribe("dji_sdk/height_above_takeoff", 1, &heightCb);
 
 	private_nh_.param("/depth_generation/intensity", intensity, 0.1f);
 

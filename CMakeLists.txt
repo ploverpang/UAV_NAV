@@ -87,12 +87,12 @@ target_link_libraries(sensor_feedback
   usb-1.0
   yaml-cpp)
 
-#add_executable(depth_generation_thread
-#  src/depth_generation_thread.cc
-#  src/supporting_alg_thread.cc)
-#target_link_libraries(depth_generation_thread
-#  ${OpenCV_LIBS}
-#  ${catkin_LIBRARIES})
+add_executable(depth_generation_thread
+  src/depth_generation_thread.cc
+  src/supporting_alg_thread.cc)
+target_link_libraries(depth_generation_thread
+  ${OpenCV_LIBS}
+  ${catkin_LIBRARIES})
 
 add_executable(depth_generation_front
   src/depth_generation_front.cc

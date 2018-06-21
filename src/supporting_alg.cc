@@ -164,7 +164,6 @@ void fovReduction(float alt, cv::Mat src_img, cv::Mat& dst_img){
   else{
     clearance = 0.5;
   }
-  ROS_INFO("clearance: %f", clearance);
   double newAngle = atan2(clearance, CAMERARANGE*1.5); //1.5 might be useful
   if (newAngle>FOV_y/2) newAngle = FOV_y/2;
   int cutoffPixel = (src_img.rows-(round(double(src_img.rows)*(newAngle*2)/FOV_y)))/2;
