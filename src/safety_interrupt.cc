@@ -121,6 +121,8 @@ int main(int argc, char** argv)
 	interrupt_signal.data = 0;
 
 	ros::spinOnce();
+  ros::Duration(2).sleep();
+  ros::spinOnce();
 
 	while(ros::ok())
 	{

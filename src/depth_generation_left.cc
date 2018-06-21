@@ -199,7 +199,7 @@ void DepthProcessing(cv::Mat src_img){
 	for (int i=0; i < numSlices_x; i++){
 		if (depthGridValues[i][0][0]<=scans.range_max){
 			scans.intensities[i] = gridConfidence[i][0][0];
-			if (gridConfidence[i][0][0] > 0.3)
+			if (gridConfidence[i][0][0] > 0.1)
 				scans.ranges[i] = depthGridValues[i][0][0];
 			else
 				scans.ranges[i] = 0.0;

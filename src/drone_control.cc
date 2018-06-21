@@ -224,8 +224,7 @@ bool monitoredLanding()
   ros::Duration(0.01).sleep();
   ros::spinOnce();
 
-  while(ros::Time::now() - start_time < ros::Duration(10) &&
-        flight_status != DJISDK::M100FlightStatus::M100_STATUS_FINISHED_LANDING)
+  while(ros::Time::now() - start_time < ros::Duration(10))
   {
     ros::Duration(0.01).sleep();
     ros::spinOnce();
