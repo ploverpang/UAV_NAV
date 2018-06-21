@@ -12,6 +12,7 @@ std::string left_id, right_id;
 // Queue to only run img processing when new images arrive.
 // Can also be used to tweek parameters if queue gets too big, and it reduces overhead when using gpu.
 int img_queue = 0;
+float height = 0;
 
 /* left greyscale image */
 void left_image_callback(const sensor_msgs::ImageConstPtr& left_img){
@@ -95,7 +96,7 @@ void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img, int dime
 	// Preparing disparity map for further processing
 	left_disp.setTo(0, left_disp < 0);
 	if (dimensionality == ONE_DIMENSIONAL){
-		fovReduction(left_disp, left_disp);
+		fovReduction(height, left_disp, left_disp);
 	}
 
 	// Dispraity map processing
@@ -210,12 +211,18 @@ void DepthProcessing(cv::Mat src_img){
 	return;
 }
 
+void heightCb(const std_msgs::Float32::ConstPtr& msg)
+{
+  height = msg->data;
+}
+
 int main(int argc, char** argv) {
 	ros::init(argc, argv, "depth_generation_left");
 	ros::NodeHandle nh;
 
 	left_image_sub  = nh.subscribe("uav_nav/guidance/left_image",  1, left_image_callback);
 	right_image_sub = nh.subscribe("uav_nav/guidance/right_image", 1, right_image_callback);
+  ros::Subscriber height_takeoff = nh.subscribe("dji_sdk/height_above_takeoff", 1, &heightCb);
 
 	laser_scan_pub = nh.advertise<sensor_msgs::LaserScan>("uav_nav/laser_scan_from_depthIMG", 1);
 
@@ -235,7 +242,7 @@ int main(int argc, char** argv) {
 			if (!depthMap.empty()){
 			imshow("Depth image in meters left(scaled by 10x)", depthMap*10);
 			cv::Mat fov;
-			fovReduction(left_img1, fov);
+			fovReduction(height, left_img1, fov);
 			imshow("fiv_left,", fov);
 			cv::waitKey(1);
 			}
