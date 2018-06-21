@@ -99,9 +99,8 @@ void FSM()
     }
 
     case 6: // Landing and shutting down node
-      //bool landed = monitoredLanding() ? obtainControl(false) : false;
-      bool landed = monitoredLanding();
-      obtainControl(false);
+      ros::Duration(2).sleep();
+      bool landed = monitoredLanding() ? obtainControl(false) : false;
       if(landed)
         ROS_INFO("Drone landed and control is released.\nShutting down drone_control...");
       else
@@ -220,7 +219,7 @@ bool monitoredLanding()
   if(!takeoffLand(dji_sdk::DroneTaskControl::Request::TASK_LAND))
     return false;
 
-  ROS_DEBUG("M100 landing!");
+  ROS_INFO("M100 landing!");
   ros::Duration(0.01).sleep();
   ros::spinOnce();
 
@@ -230,13 +229,13 @@ bool monitoredLanding()
     ros::spinOnce();
   }
 
-  if(flight_status != DJISDK::M100FlightStatus::M100_STATUS_FINISHED_LANDING)
+  /*if(flight_status != DJISDK::M100FlightStatus::M100_STATUS_FINISHED_LANDING)
   {
     ROS_ERROR("Landing failed.");
     return false;
-  }
+  }*/
 
-  ROS_INFO("Successful landing!");
+  ROS_DEBUG("Successful landing!");
   ros::spinOnce();
   return true;
 }
