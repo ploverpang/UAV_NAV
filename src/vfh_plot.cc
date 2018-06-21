@@ -21,6 +21,7 @@ void vfh_start(geometry_msgs::TwistStamped msg){
 }
 
 
+
 int main(int argc, char** argv)
 {
   // Initialize ROS
@@ -41,6 +42,7 @@ int main(int argc, char** argv)
 
 
   // Load parameters
+  private_nh_.param("/vfh/t_obst",      t_obst,             60.f);
   private_nh_.param("/vfh/s",           s,                  72);
   private_nh_.param("/vfh/t_obst",      t_obst,             60.f);
   private_nh_.param("/vfh/t_high",      bin_hist_high,      20.5f);

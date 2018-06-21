@@ -15,3 +15,6 @@ sensor_feedback:
 
 drone_control:
   alt: 2.5
+
+depth_generation:
+  intensity: 0.1

@@ -9,9 +9,11 @@ ros::Publisher laser_scan_pub;
 cv::Mat left_img1(HEIGHT, WIDTH, CV_8UC1);
 cv::Mat right_img1(HEIGHT, WIDTH, CV_8UC1);
 std::string left_id, right_id;
+float intensity;
 // Queue to only run img processing when new images arrive.
 // Can also be used to tweek parameters if queue gets too big, and it reduces overhead when using gpu.
 int img_queue = 0;
+float height = 0;
 
 /* left greyscale image */
 void left_image_callback(const sensor_msgs::ImageConstPtr& left_img){
@@ -95,7 +97,7 @@ void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img, int dime
 	// Preparing disparity map for further processing
 	left_disp.setTo(0, left_disp < 0);
 	if (dimensionality == ONE_DIMENSIONAL){
-		fovReduction(left_disp, left_disp);
+		fovReduction(height, left_disp, left_disp);
 	}
 
 	// Dispraity map processing
@@ -198,7 +200,7 @@ void DepthProcessing(cv::Mat src_img){
 	for (int i=0; i < numSlices_x; i++){
 		if (depthGridValues[i][0][0]<=scans.range_max){
 			scans.intensities[i] = gridConfidence[i][0][0];
-			if (gridConfidence[i][0][0] > 0.1)
+			if (gridConfidence[i][0][0] > intensity)
 				scans.ranges[i] = depthGridValues[i][0][0];
 			else
 				scans.ranges[i] = 0.0;
@@ -209,12 +211,21 @@ void DepthProcessing(cv::Mat src_img){
 	return;
 }
 
+void heightCb(const std_msgs::Float32::ConstPtr& msg)
+{
+  height = msg->data;
+}
+
 int main(int argc, char** argv) {
 	ros::init(argc, argv, "depth_generation_right");
 	ros::NodeHandle nh;
+	ros::NodeHandle private_nh_("~");
 
 	left_image_sub  = nh.subscribe("uav_nav/guidance/left_image",  1, left_image_callback);
 	right_image_sub = nh.subscribe("uav_nav/guidance/right_image", 1, right_image_callback);
+  ros::Subscriber height_takeoff = nh.subscribe("dji_sdk/height_above_takeoff", 1, &heightCb);
+
+	private_nh_.param("/depth_generation/intensity", intensity, 0.1f);
 
 	laser_scan_pub = nh.advertise<sensor_msgs::LaserScan>("uav_nav/laser_scan_from_depthIMG", 1);
 
@@ -235,7 +246,7 @@ int main(int argc, char** argv) {
 			if (!depthMap.empty()){
 			imshow("Depth image in meters right (scaled by 10x)", depthMap*10);
 			cv::Mat fov;
-			fovReduction(left_img1, fov);
+			fovReduction(height, left_img1, fov);
 			imshow("fiv_right", fov);
 			cv::waitKey(1);
 			}
