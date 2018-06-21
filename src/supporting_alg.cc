@@ -158,14 +158,17 @@ void dispToMeter(cv::Mat src_img, cv::Mat& dst_img){
 void fovReduction(float alt, cv::Mat src_img, cv::Mat& dst_img){
   const double FOV_y = CAMERAFOV_Y*M_PI/180;
   double clearance = CLEARANCE;
-  if(alt > 0.5)
+  if(alt > 1){
     clearance = alt >= 2.5 ? 2.0 : alt-0.5;
-  else
+  }
+  else{
     clearance = 0.5;
+  }
+  ROS_INFO("clearance: %f", clearance);
   double newAngle = atan2(clearance, CAMERARANGE*1.5); //1.5 might be useful
   if (newAngle>FOV_y/2) newAngle = FOV_y/2;
-  static int cutoffPixel = (src_img.rows-(round(double(src_img.rows)*(newAngle*2)/FOV_y)))/2;
-  static cv::Rect crop(0, cutoffPixel, src_img.cols, src_img.rows-2*cutoffPixel);
+  int cutoffPixel = (src_img.rows-(round(double(src_img.rows)*(newAngle*2)/FOV_y)))/2;
+  cv::Rect crop(0, cutoffPixel, src_img.cols, src_img.rows-2*cutoffPixel);
   cv::Mat cropped = src_img(crop);
   dst_img = cropped.clone();
   return;
