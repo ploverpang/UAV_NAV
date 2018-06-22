@@ -180,7 +180,6 @@ void maskGround(float alt, cv::Mat src_img, cv::Mat& dst_img){
   if (newAngle>FOV_y) newAngle = FOV_y;
   int cutoffPixel = (src_img.rows-(round(double(src_img.rows)*newAngle/FOV_y)))/2;
   cv::Rect crop(0, 0, src_img.cols, src_img.rows-cutoffPixel);
-  ROS_INFO("%i, %f, %f, %f, %i", src_img.rows, newAngle, FOV_y, newAngle/FOV_y, cutoffPixel);
   cv::Mat mask = cv::Mat::zeros(src_img.size(), src_img.type());
   mask(crop) = 255;
   cv::Mat zeros = cv::Mat::zeros(src_img.size(), src_img.type());
