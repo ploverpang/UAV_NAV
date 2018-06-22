@@ -11,6 +11,8 @@ geometry_msgs::Vector3Stamped velocity;       // Linear velocity
 cv::Mat                       hist_grid;      // Histogram grid 2D
 cv::Mat                       circle_mask;    // Mask used to create circular active window
 bool                          ready          = false;
+std::string id_buffer = "zero";
+
 
 int main(int argc, char** argv)
 {
@@ -170,6 +172,9 @@ void getTargetDir(unsigned                 alpha,
 void fillHistogramGrid(sensor_msgs::LaserScan msg)
 {
   // Based on camera_ID, scalar * 90° is added to the yaw. CCW, north = 0°
+  if (id_buffer == msg.header.frame_id) return;
+  id_buffer = msg.header.frame_id;
+
   static int scalar;
   std::string camera_ID = msg.header.frame_id;
 

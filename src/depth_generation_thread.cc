@@ -88,7 +88,7 @@ void CreateDepthImage(int thread_id, cv::Mat& L_img, cv::Mat& R_img, std::string
 	left_matcher->compute( L_cuda, R_cuda, disp_cuda);
 	disp_cuda.download(left_disp);
 	// cuda StereoBM returns an 8 bit image, while the cpu implementation returns a 16 bit deep disparity
-	left_disp.convertTo(left_disp, CV_16UC1, 16); 
+	left_disp.convertTo(left_disp, CV_16UC1); //1/16?
     #else
 	if (wsize<5) wsize = 5;
 	cv::Ptr<cv::StereoBM> left_matcher  = cv::StereoBM::create(numDisp,wsize);
@@ -107,7 +107,8 @@ void CreateDepthImage(int thread_id, cv::Mat& L_img, cv::Mat& R_img, std::string
 	// Preparing disparity map for further processing
 	left_disp.setTo(0, left_disp < 0);
 	if (dimensionality == ONE_DIMENSIONAL){
-		fovReduction(altitude, left_disp, left_disp);
+		fovReduction(CLEARANCE, left_disp, left_disp);
+		maskGround(altitude, left_disp, left_disp);
 	}
 
 	// Dispraity map processing
@@ -280,7 +281,8 @@ int main(int argc, char** argv) {
 			}
 		}
 		cv::Mat fov;
-		fovReduction(altitude, front_img, fov);
+		fovReduction(CLEARANCE, front_img, fov);
+		maskGround(altitude, fov, fov);
 		imshow("fov_front,", fov);
 		cv::waitKey(1);
 		#endif

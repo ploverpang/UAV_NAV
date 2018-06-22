@@ -13,7 +13,7 @@ float intensity;
 // Queue to only run img processing when new images arrive.
 // Can also be used to tweek parameters if queue gets too big, and it reduces overhead when using gpu.
 int img_queue = 0;
-float height = 2.5;
+float height = 2;
 
 /* left greyscale image */
 void left_image_callback(const sensor_msgs::ImageConstPtr& left_img){
@@ -69,7 +69,7 @@ void CreateDepthImage(cv::Mat& L_img, cv::Mat& R_img, cv::Mat& dst_img, int dime
 	left_matcher->compute( L_cuda, R_cuda, disp_cuda);
 	disp_cuda.download(left_disp);
 	// cuda StereoBM returns an 8 bit image, while the cpu implementation returns a 16 bit deep disparity
-	left_disp.convertTo(left_disp, CV_16UC1, 16);
+	left_disp.convertTo(left_disp, CV_16UC1);
     #else
 	/*cv::Ptr<cv::StereoSGBM> left_matcher  = cv::StereoSGBM::create(0,numDisp,wsize);
 	// StereoSGBM parameter setup
@@ -227,7 +227,7 @@ int main(int argc, char** argv) {
 
 	private_nh_.param("/depth_generation/intensity", intensity, 0.1f);
 
-	laser_scan_pub = nh.advertise<sensor_msgs::LaserScan>("uav_nav/laser_scan_from_depthIMG", 1);
+	laser_scan_pub = nh.advertise<sensor_msgs::LaserScan>("uav_nav/laser_scan_from_depthIMG_debug", 1);
 
 	cv::Mat depthMap;
 	ROS_INFO("Depth generation node running");

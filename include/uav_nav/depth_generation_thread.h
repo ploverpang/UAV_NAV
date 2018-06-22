@@ -42,5 +42,6 @@ void legacyRoundMorph(cv::Mat& src_img, int byNumber, int xy);
 void roundMorph(cv::Mat& src_img, cv::Mat& dst_img, int xy, int threshold);
 void dispToMeter(cv::Mat src_img, cv::Mat& dst_img);
 void fovReduction(float alt, cv::Mat src_img, cv::Mat& dst_img);
+void maskGround(float alt, cv::Mat src_img, cv::Mat& dst_img);
 
 #endif // UAVNAV_DEPTHGENERATION_H_

@@ -166,3 +166,25 @@ void fovReduction(float alt, cv::Mat src_img, cv::Mat& dst_img){
   dst_img = cropped.clone();
   return;
 }
+
+void maskGround(float alt, cv::Mat src_img, cv::Mat& dst_img){
+  double clearance = CLEARANCE;
+  if(alt > 1){
+    clearance = alt >= 2.5 ? (float)CLEARANCE : alt-0.5;
+  }
+  else{
+    clearance = 0.5;
+  }
+  double newAngle = atan2(clearance, CAMERARANGE*1.5); //1.5 might be useful
+  const double FOV_y = atan2(CLEARANCE, CAMERARANGE*1.5); //1.5 might be useful
+  if (newAngle>FOV_y) newAngle = FOV_y;
+  int cutoffPixel = (src_img.rows-(round(double(src_img.rows)*newAngle/FOV_y)))/2;
+  cv::Rect crop(0, 0, src_img.cols, src_img.rows-cutoffPixel);
+  ROS_INFO("%i, %f, %f, %f, %i", src_img.rows, newAngle, FOV_y, newAngle/FOV_y, cutoffPixel);
+  cv::Mat mask = cv::Mat::zeros(src_img.size(), src_img.type());
+  mask(crop) = 255;
+  cv::Mat zeros = cv::Mat::zeros(src_img.size(), src_img.type());
+  src_img.copyTo(zeros, mask);
+  zeros.copyTo(dst_img);
+  return;
+}

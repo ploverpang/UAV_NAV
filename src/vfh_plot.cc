@@ -16,8 +16,8 @@ cv::Mat show;
 int run = 0;
 
 
-void vfh_start(geometry_msgs::TwistStamped msg){
-  if (msg.twist.linear.x != 0) run = 1;
+void vfh_start(const std_msgs::Bool::ConstPtr& msg){
+  if (msg->data == true) run = 1;
 }
 
 
@@ -84,8 +84,9 @@ int main(int argc, char** argv)
   ros::Subscriber loc_pos_sub    = nh.subscribe("dji_sdk/local_position",           1, &localPositionCb);
   ros::Subscriber vel_sub        = nh.subscribe("dji_sdk/velocity",                 1, &velocityCb);
   ros::Subscriber rpy_sub        = nh.subscribe("uav_nav/roll_pitch_yaw",           1, &RPYCb);
-  ros::Subscriber laser_scan_sub = nh.subscribe("uav_nav/laser_scan_from_depthIMG", 3, &laserScanCb);
+  ros::Subscriber laser_scan_sub = nh.subscribe("uav_nav/laser_scan_from_depthIMG_debug", 3, &laserScanCb);
   ros::Subscriber vfh_started    = nh.subscribe("uav_nav/vel_cmd", 1, &vfh_start);
+  ros::Subscriber ready_sub = nh.subscribe("uav_nav/dc_ready", 1, &vfh_start);
 
   // Necessary functions before entering ros spin
   getLUTs(histDimension, radius_enlargement, &beta, &dist_scaled, &enlarge);
@@ -175,8 +176,8 @@ void fillHistogramGrid(sensor_msgs::LaserScan msg)
 {
   // Based on camera_ID, scalar * 90° is added to the yaw. CCW, north = 0°
 
-  //if (id_buffer == msg.header.frame_id) return;
-  //id_buffer = msg.header.frame_id;
+  if (id_buffer == msg.header.frame_id) return;
+  id_buffer = msg.header.frame_id;
   if(!run)return;
 
   static int scalar;
@@ -309,11 +310,11 @@ void binaryHist(unsigned                 s,
       }
     }
   }
-  ROS_INFO("\nPolar histogram values in this iteration are:");
+  /*ROS_INFO("\nPolar histogram values in this iteration are:");
   for (int i = 0; i < s; ++i)
   {
     if(polar[i]!=0){ROS_INFO("Sector %i has value %f", i, polar[i]);}
-  }
+  }*/
 
   static std::vector<unsigned> prev_h(s);
   h->clear(); // Same as (*h).clear();
