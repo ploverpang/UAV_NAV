@@ -243,7 +243,7 @@ int main(int argc, char** argv) {
 		if(!left_id.empty() && left_id.compare(right_id) == 0 && img_queue != 0 && left_id =="front") {  // Initial IMG rendering may delay the main loop.
 			CreateDepthImage(left_img1, right_img1, depthMap, ONE_DIMENSIONAL);
 			img_queue--;
-			#ifndef USE_GPU
+			/*#ifndef USE_GPU
 			if (!depthMap.empty()){
 			imshow("Depth image in meters front(scaled by 10x)", depthMap*10);
 			cv::Mat fov;
@@ -252,7 +252,7 @@ int main(int argc, char** argv) {
 			imshow("fiv_front,", fov);
 			cv::waitKey(1);
 			}
-			#endif
+			#endif*/
 		}
 		ros::spinOnce();
 	}
