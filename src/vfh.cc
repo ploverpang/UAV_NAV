@@ -172,13 +172,10 @@ void fillHistogramGrid(sensor_msgs::LaserScan msg)
 {
   if(id_buffer == msg.header.frame_id) return;
   id_buffer = msg.header.frame_id;
-  // Based on camera_ID, scalar * 90° is added to the yaw. CCW, north = 0°
-  if (id_buffer == msg.header.frame_id) return;
-  id_buffer = msg.header.frame_id;
 
   static int scalar;
   std::string camera_ID = msg.header.frame_id;
-
+  // Based on camera_ID, scalar * 90° is added to the yaw. CCW, north = 0°
   if(camera_ID == "front")
     scalar = 0;
   else if(camera_ID == "left")
